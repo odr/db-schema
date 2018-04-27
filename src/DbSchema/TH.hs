@@ -21,7 +21,7 @@ mkSchema db sch qt
   >>= mkInsts db sch
 
 mkInsts :: Name -> Name
-        -> ([(Type,Type,[(Type,Type)])],[((Type, Type), (Type,Type))])
+        -> ([(Type,Name,Type,[(Type,Type)])],[((Type, Type), (Type,Type))])
         -> Q [Dec]
 mkInsts db sch (tabs, rels) = concat <$> sequence
   [ concat <$> mapM (instTab db sch rels) tabs
@@ -36,18 +36,21 @@ mkInsts db sch (tabs, rels) = concat <$> sequence
           type TRels   $(schQ) = $(return relNames)
           -- tables               = $(return $ symLtoTextL tabL)
           -- rels                 = $(return $ symLtoTextL relL)
+        instance DDLSchema $(conT db) $(schQ)
     |]
+  , concat <$> mapM (instRec db sch rels) tabs
   ]
   where
     schQ = conT sch
-    tabL = map (\(tn,_,_)->tn) tabs
+    tabL = map (\(tn,_,_,_)->tn) tabs
     relL = map (\(_,(rn,_))->rn) rels
     tabNames = toPromotedList tabL
     relNames = toPromotedList relL
 
-instTab :: Name -> Name -> [((Type,Type),(Type, Type))] -> (Type, Type, [(Type,Type)])
+instTab :: Name -> Name -> [((Type,Type),(Type, Type))]
+        -> (Type, Name, Type, [(Type,Type)])
         -> Q [Dec]
-instTab db sch rels (tabName,tabDef,flds) = do
+instTab db sch rels (tabName,rc,tabDef,flds) = do
   concat <$> sequence [inst >>= mapM (\i -> setInsts i <$> insts), instDDLT]
   where
     schQ = conT sch
@@ -81,11 +84,44 @@ instTab db sch rels (tabName,tabDef,flds) = do
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
 
-tabPreToTabRel :: Type -> Q ((Type, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
+instRec :: Name -> Name -> [((Type,Type),(Type, Type))]
+        -> (Type, Name, Type, [(Type,Type)])
+        -> Q [Dec]
+instRec db sch rels (tabName,rc,tabDef,flds)
+  = return []
+  -- concat <$> mapM flds
+  -- where
+  --   [dbQ, schQ, rcQ] = map conT [db,sch,rc]
+  --   inst = [d|
+  --     instance CRecDef $(dbQ) $(schQ) $(rcQ) where
+  --       type TRecTab $(dbQ) $(schQ) $(rcQ) = $(return tabName)
+  --       type TRecFlds $(dbQ) $(schQ) $(rcQ)
+  --         = $(return $ toPromotedList $ map toPromotedPair flds)
+  --       type instance TRecChilds $(schQ) $(tabQ) = $(promotedNilT)
+  --       recToDB =
+  --     |]
+--
+--   [d|
+--   -- class ( RecC db (TRecFlds db sch a)
+--   --       , ChildsC db sch (TRecChilds db sch a)
+--   --       , CTabDef sch (TRecTab db sch a)
+--   --       ) => CRecDef db sch (a::Type) where
+--   --   type TRecTab db sch a  :: Symbol
+--   --   type TRecFlds db sch a :: [(Symbol,Type)]
+--   --   type TRecChilds db sch a :: [(Symbol,Type)]
+--   --   recToDB :: a -> [FieldDB db]
+--   --   recFromDB :: [FieldDB db] -> (a,[FieldDB db])
+--   instance CRecDef $(conT db) $(conT sch)
+--
+--   |]
+
+tabPreToTabRel
+  :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
 tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rec)) pk) uk) ai) relTo) = do
   flds <- recToFlds rec
   return
     ( ( tabName
+      , rec
       , AppT (AppT (AppT (AppT (PromotedT 'TabDefC)
                                (toPromotedList $ map fst flds)) pk) uk) ai
       , flds
@@ -129,9 +165,3 @@ toPromotedList = \case
 
 toPromotedPair :: (Type,Type) -> Type
 toPromotedPair (x,y) = AppT (AppT (PromotedTupleT 2) x) y
-
--- symToText :: Type -> Exp
--- symToText (LitT (StrTyLit s)) = SigE (LitE (StringL s)) (ConT ''T.Text)
---
--- symLtoTextL :: [Type] -> Exp
--- symLtoTextL = ListE . map symToText

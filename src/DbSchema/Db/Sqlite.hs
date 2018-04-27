@@ -1,7 +1,10 @@
 {-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE InstanceSigs              #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeApplications          #-}
@@ -15,17 +18,24 @@ module DbSchema.Db.Sqlite
     where
 
 import           Control.Monad.Catch        (SomeException, catch, throwM)
-import           Control.Monad.IO.Class     (MonadIO (..))
+-- import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.Trans.Reader (ReaderT (..), ask)
+import           Data.Bifunctor             (first)
+import           Data.ByteString            (ByteString (..))
 import           Data.Monoid                ((<>))
+import           Data.Proxy                 (Proxy (..))
+import qualified Data.Text                  as T
 import           Data.Text.Format           (Only (..))
+import           Data.Time
 import           Database.SQLite3           (Database, SQLData (..), Statement,
                                              StepResult (..), bind, close,
                                              columns, exec, finalize,
                                              lastInsertRowId, open, prepare,
                                              reset, step)
+import           GHC.TypeLits               (KnownSymbol)
 
 import           DbSchema.Db
+import           DbSchema.Def
 
 data Sqlite
 
@@ -97,8 +107,6 @@ type instance DbTypeName Sqlite UTCTime = "TEXT"
 -- type instance GPlus ByteString = False
 -- type instance GPlus (Maybe a) = False
 
-
-
 instance Db Sqlite where
     type SessionParams Sqlite = Text
     type Conn Sqlite          = Database
@@ -110,6 +118,7 @@ instance Db Sqlite where
     createTableText t fs pk
       = format "CREATE TABLE IF NOT EXISTS {} ({}, PRIMARY KEY ({}) {})"
       . createTableParams @Sqlite t fs pk
+    createRelText _ _ _ = mempty
 
     deleteConstraintText _    = ""
     runSession par sm         = do
@@ -150,3 +159,58 @@ instance Db Sqlite where
     execCommand cmd = do
       liftIO $ print $ "execCommand: " <> cmd
       ask >>= \conn -> liftIO (exec conn cmd)
+
+instance KnownSymbol name => CFldDef Sqlite name Int64 where
+  fldToDb   = defToDb @_ @Sqlite SQLInteger
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
+                                   (\case {SQLInteger v -> Just v;_ -> Nothing})
+--
+instance KnownSymbol name => CFldDef Sqlite name T.Text where
+  fldToDb   = defToDb @_ @Sqlite  SQLText
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
+                                   (\case {SQLText v -> Just v;_ -> Nothing})
+--
+instance KnownSymbol name => CFldDef Sqlite name Double where
+  fldToDb   = defToDb @_ @Sqlite SQLFloat
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
+                                   (\case {SQLFloat v -> Just v;_ -> Nothing})
+--
+instance KnownSymbol name => CFldDef Sqlite name ByteString where
+  fldToDb   = defToDb @_ @Sqlite SQLBlob
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
+                                   (\case {SQLBlob v -> Just v;_ -> Nothing})
+--
+instance CFldDef Sqlite name val
+        => CFldDef Sqlite name (Maybe val) where
+  fldToDb   = defMbToDb (Proxy @Sqlite) (Proxy @name) SQLNull
+  fldFromDb = defMbFromDb (Proxy @Sqlite) (Proxy @name)
+                          (\case {SQLNull -> True; _ -> False})
+--
+instance KnownSymbol name => CFldDef Sqlite name Int where
+  fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral
+  fldFromDb = fmap (first fromIntegral) . fldFromDb @Sqlite @name @Int64
+--
+instance KnownSymbol name => CFldDef Sqlite name (Fixed n) where
+  fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral . (\(MkFixed v) -> v)
+  fldFromDb = fmap (first (MkFixed . fromIntegral))
+            . fldFromDb @Sqlite @name @Int64
+
+instance KnownSymbol name => CFldDef Sqlite name Bool where
+  fldToDb   = fldToDb @Sqlite @name @Int64 . (\b -> if b then 1 else 0)
+  fldFromDb = fmap (first (==1)) . fldFromDb @Sqlite @name @Int64
+
+instance KnownSymbol name => CFldDef Sqlite name Day where
+  fldToDb   = fldToDb @Sqlite @name @T.Text
+                    . T.pack . formatTime defaultTimeLocale "%F"
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name) (\case
+          SQLText v -> parseTimeM True defaultTimeLocale "%F" $ T.unpack v
+          _         -> Nothing
+        )
+-- UTCTime
+instance KnownSymbol name => CFldDef Sqlite name UTCTime where
+  fldToDb   = fldToDb @Sqlite @name @T.Text
+                    . T.pack . formatTime defaultTimeLocale "%FT%X"
+  fldFromDb = defFromDb @_ @Sqlite (Proxy @name) (\case
+          SQLText v -> parseTimeM True defaultTimeLocale "%FT%X" $ T.unpack v
+          _         -> Nothing
+        )

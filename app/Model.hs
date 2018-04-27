@@ -4,16 +4,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
-module Model where
+module Model(module Model) where
 
-import           Data.Fixed
-import           Data.Int           (Int64)
+import           Data.Fixed         as Model
+import           Data.Int           as Model (Int64)
 import           Data.Text
-import           Data.Time
+import           Data.Time          as Model
 
-import           DbSchema.Db.Sqlite (Sqlite)
-import           DbSchema.Def
+import           DbSchema.Db        as Model
+import           DbSchema.Db.Sqlite as Model (Sqlite)
+import           DbSchema.DDL       as Model
+import           DbSchema.Def       as Model
 import           DbSchema.TH        (mkSchema)
+
+type Dbs = Sqlite
 
 data Customer = Customer  { id   :: Int
                           , name :: Text
@@ -70,9 +74,9 @@ data CurrRate = CurrRate { currencyCode :: Text
                          , coeff        :: Fixed E6
                          }
 
-data MySchema
+data Sch
 
-mkSchema ''Sqlite ''MySchema [t|
+mkSchema ''Sqlite ''Sch [t|
   '[TPD Customer '["id"] '[ '["name"]] True '[]
 
   , TPD Address '["id"] '[] True
@@ -107,5 +111,3 @@ mkSchema ''Sqlite ''MySchema [t|
       ]
   ]
   |]
-
--- instance DDL Sqlite MySchema

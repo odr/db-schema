@@ -1,3 +1,4 @@
 .stack-work/
 db-schema.cabal
+*.db
 *~

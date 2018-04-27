@@ -1,6 +1,9 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications  #-}
 module Main where
 
 import           Model
 
 main :: IO ()
-main = return ()
+main = runSession @Dbs "test.db" $ do
+  createSchema @Dbs @Sch

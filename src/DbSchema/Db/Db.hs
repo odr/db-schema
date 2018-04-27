@@ -6,10 +6,10 @@
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
-module DbSchema.Db.Db where
+module DbSchema.Db.Db (module DbSchema.Db.Db) where
 
 import           Control.Monad.Catch        (MonadCatch, MonadMask)
-import           Control.Monad.IO.Class     (MonadIO)
+import           Control.Monad.IO.Class     as DbSchema.Db.Db
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.Kind                  (Constraint, Type)
 import           Data.List                  (find)
@@ -22,10 +22,13 @@ import qualified Data.Text                  as T
 import           GHC.Generics               (Generic)
 import           GHC.TypeLits               (KnownSymbol, symbolVal)
 
-import           DbSchema.Def
+-- import           DbSchema.Def
 import           DbSchema.Util.Format
 
 
+
+data DelCons = DcRestrict | DcCascade | DcSetNull
+  deriving (Show, Eq, Ord, Read)
 
 type SessionMonad b m = ReaderT (Conn b) m
 
@@ -38,8 +41,6 @@ class Db back where
   type GenKey back         -- set to () if generation is impossible
   paramName :: Int -> Text -- ^ How to create param name (like "?1") from param num
 
-  -- afterCreateTableText :: Text
-  -- afterCreateTableText = ""
   createTableText :: Text -> [(Text,(Text,Bool))] -> [Text] -> [[Text]] -> Text
   createTableText t fs pk = format "CREATE TABLE {} ({}, PRIMARY KEY ({}) {})"
                           . createTableParams @back t fs pk

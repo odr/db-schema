@@ -1,0 +1,4 @@
+:set -XTypeApplications -XDataKinds -XScopedTypeVariables -XTemplateHaskell
+import qualified Data.Text as T
+import GHC.TypeLits as TL
+import Language.Haskell.TH as TH

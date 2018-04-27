@@ -26,11 +26,9 @@ class (Db b, CSchema sch, CTabDef sch s
       , ToStar (DbFldTypes b (TFldTypes sch s))) => DDLTab b sch s where
   ddlCreateTableText :: T.Text
   ddlCreateTableText
-    = createTableText @b
-        (tabName @sch @s)
+    = createTableText @b (tabName @sch @s)
         (zip (tdFlds td) (toStar @_ @(DbFldTypes b (TFldTypes sch s))))
-        (tdKey td)
-        (tdUniq td)
+        (tdKey td) (tdUniq td)
     where
       td = tabDef @sch @s
 
@@ -53,7 +51,10 @@ class (Db b, CSchema sch, CRelDef sch s) =>  DDLRel b sch s where
     $ relDef @sch @s
 
   createRel :: MonadIO m => SessionMonad b m ()
-  createRel = execCommand @b (ddlCreateRelText @b @sch @s)
+  createRel | T.null rt = return ()
+            | otherwise = execCommand @b rt
+    where
+      rt = ddlCreateRelText @b @sch @s
 
 class DDLRels b sch (ss::[Symbol]) where
   createRels :: MonadIO m => SessionMonad b m ()
