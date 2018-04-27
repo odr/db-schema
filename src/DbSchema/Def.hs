@@ -233,7 +233,7 @@ class ( RecC db (TRecFlds db sch a)
   type TRecChilds db sch a :: [(Symbol,Type)]
   recFldNames :: [T.Text]
   recToDb :: a -> [FieldDB db]
-  recFromDb :: [FieldDB db] -> Either T.Text (a,[FieldDB db])
+  recFromDb :: FromDbMonad db a
 --------------------------------------------
 
 -- Simple lens by (fldName :: Symbol)

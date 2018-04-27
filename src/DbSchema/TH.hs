@@ -106,9 +106,7 @@ instRec db sch rels (tabName,rc,tabDef,flds)
         type TRecChilds $(dbQ) $(schQ) $(rcQ) = $(promotedNilT)
         recFldNames = $(listE $ map (symToStrEQ . fst) flds)
         recToDb c = concatMap ($ c) $(expLstToDb)
-        -- fldFromDb :: [FieldDB db] -> Either T.Text (val, [FieldDB db])
-        -- recFromDB :: [FieldDB db] -> Either T.Text (a,[FieldDB db])
-        recFromDb = undefined
+        recFromDb = $(expFromDb)
       |]
     decLens (s,t) =
       [d| instance RecLens $(return s) $(rcQ) $(return t) where
@@ -118,17 +116,23 @@ instRec db sch rels (tabName,rc,tabDef,flds)
     expLstToDb = listE $ map expFldToDb flds
       where
         expFldToDb (s,t) = [e| fldToDb @($(dbQ)) @($(return s)) @($(return t))
-                             . (^. $(rl))
-                           |]
+                             . (^. $(rl)) |]
            where
      -- через quotation не получается, похоже на баг (из-за type appl, ghc-8.2)
              rl = appTypeE (appTypeE (appTypeE
                            [e| recLens |] (return s)) rcQ) (return t)
-    -- expFldFromDb (s,t) = [e| fldFromDb @($(dbQ)) @($(return s)) @($(return t))|]
-{-
-recFromDb xs = Customer <$> fld @"id" `ap` fld @"name" `ap` fld @"note"
+    expFromDb =
+      case map (\(s,t) -> [e| fldFromDb @($(dbQ)) @($(return s))
+                                        @($(return t)) |]) flds of
+        (x:xs) -> foldl (\b a -> [e| (<*>) $(b) $(a) |])
+                        [e| $(conByType rc) <$> $(x)|] xs
+        _ -> fail $ "Error for fldFromDb for " ++ pprint db ++ ", "
+                  ++ pprint sch ++ ", " ++ pprint rc
 
--}
+conByType :: Name -> ExpQ
+conByType n = reify n >>= \case
+  TyConI (DataD _ _ _ _ [RecC c _] _) -> conE c
+  _ -> fail $ "Error on getting single constructor for type " ++ pprint n
 
 tabPreToTabRel
   :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
