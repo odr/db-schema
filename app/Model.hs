@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -6,47 +7,50 @@
 {-# LANGUAGE TypeFamilies          #-}
 module Model(module Model) where
 
-import           Data.Fixed         as Model
-import           Data.Int           as Model (Int64)
+import           Data.Fixed            as Model
+import           Data.Generics.Product
+import           Data.Int              as Model (Int64)
 import           Data.Text
-import           Data.Time          as Model
+import           Data.Time             as Model
+import           GHC.Generics
+import           Lens.Micro
 
-import           DbSchema.Db        as Model
-import           DbSchema.Db.Sqlite as Model (Sqlite)
-import           DbSchema.DDL       as Model
-import           DbSchema.Def       as Model
-import           DbSchema.TH        (mkSchema)
+import           DbSchema.Db           as Model
+import           DbSchema.Db.Sqlite    as Model (Sqlite)
+import           DbSchema.DDL          as Model
+import           DbSchema.Def          as Model
+import           DbSchema.TH           (mkSchema)
 
 type Dbs = Sqlite
 
 data Customer = Customer  { id   :: Int
                           , name :: Text
                           , note :: Text
-                          }
+                          } deriving (Show,Eq,Ord,Generic)
 
 data Address = Address  { id         :: Int
                         , customerId :: Int
                         , val        :: Text
                         , isActive   :: Bool
-                        }
+                        } deriving (Show,Eq,Ord,Generic)
 
 data Article = Article  { id    :: Int
                         , name  :: Text
                         , price :: Fixed E2
-                        }
+                        } deriving (Show,Eq,Ord,Generic)
 
 data ArticlePrice = ArticlePrice { articleId :: Int
                                  , dayBegin  :: Day
                                  , dayEnd    :: Maybe Day
                                  , val       :: Fixed E2
-                                 }
+                                 } deriving (Show,Eq,Ord,Generic)
 
 data Orders = Orders  { id         :: Int
                       , num        :: Text
                       , customerId :: Int
                       , payerId    :: Maybe Int
                       , day        :: Day
-                      }
+                      } deriving (Show,Eq,Ord,Generic)
 
 data OrderPosition = OrderPosition  { orderId      :: Int
                                     , num          :: Int
@@ -54,7 +58,7 @@ data OrderPosition = OrderPosition  { orderId      :: Int
                                     , quantity     :: Int
                                     , price        :: Fixed E2
                                     , currencyCode :: Text
-                                    }
+                                    } deriving (Show,Eq,Ord,Generic)
 
 data Payments = Payments  { id           :: Int
                           , orderId      :: Int
@@ -63,16 +67,16 @@ data Payments = Payments  { id           :: Int
                           , val          :: Fixed E2
                           , currencyCode :: Text
                           , note         :: Text
-                          }
+                          } deriving (Show,Eq,Ord,Generic)
 
 data Currency = Currency { code :: Text
                          , name :: Text
-                         }
+                         } deriving (Show,Eq,Ord,Generic)
 
 data CurrRate = CurrRate { currencyCode :: Text
                          , day          :: Day
                          , coeff        :: Fixed E6
-                         }
+                         } deriving (Show,Eq,Ord,Generic)
 
 data Sch
 

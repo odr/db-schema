@@ -188,16 +188,15 @@ instance CFldDef Sqlite name val
 --
 instance KnownSymbol name => CFldDef Sqlite name Int where
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral
-  fldFromDb = fmap (first fromIntegral) . fldFromDb @Sqlite @name @Int64
+  fldFromDb = fmap fromIntegral $ fldFromDb @Sqlite @name @Int64
 --
 instance KnownSymbol name => CFldDef Sqlite name (Fixed n) where
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral . (\(MkFixed v) -> v)
-  fldFromDb = fmap (first (MkFixed . fromIntegral))
-            . fldFromDb @Sqlite @name @Int64
+  fldFromDb = fmap (MkFixed . fromIntegral) $ fldFromDb @Sqlite @name @Int64
 
 instance KnownSymbol name => CFldDef Sqlite name Bool where
   fldToDb   = fldToDb @Sqlite @name @Int64 . (\b -> if b then 1 else 0)
-  fldFromDb = fmap (first (==1)) . fldFromDb @Sqlite @name @Int64
+  fldFromDb = fmap (==1) $ fldFromDb @Sqlite @name @Int64
 
 instance KnownSymbol name => CFldDef Sqlite name Day where
   fldToDb   = fldToDb @Sqlite @name @T.Text

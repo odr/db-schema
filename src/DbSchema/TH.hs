@@ -1,18 +1,23 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
-module DbSchema.TH (mkSchema) where
+{-# LANGUAGE TypeOperators         #-}
+module DbSchema.TH where
 
 import           Data.Bifunctor      (second)
+-- import           Data.Generics.Product.Fields
 import qualified Data.Text           as T
 import           Language.Haskell.TH
 
 import           DbSchema.Db
 import           DbSchema.DDL
 import           DbSchema.Def
+-- import           Lens.Micro
+
 
 mkSchema :: Name -> Name -> Q Type -> Q [Dec]
 mkSchema db sch qt
@@ -70,9 +75,9 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
       $ map (\(_,(n,_)) -> n)
       $ filter (\((from,to),_) -> tabName == if isFrom then from else to) rels
     instFldType = concat <$> mapM (\(fld,ft) ->
-        [d|type instance TFldType $(schQ) $(tabQ) $(return fld) = $(return ft) |]
+        [d| type instance TFldType $(schQ) $(tabQ) $(return fld) = $(return ft) |]
       ) flds
-    instDDLT = [d|instance DDLTab $(conT db) $(schQ) $(tabQ)|]
+    instDDLT = [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
 
     inst :: Q [Dec]
     inst = [d| instance CTabDef $(schQ) $(tabQ) |]
@@ -88,32 +93,42 @@ instRec :: Name -> Name -> [((Type,Type),(Type, Type))]
         -> (Type, Name, Type, [(Type,Type)])
         -> Q [Dec]
 instRec db sch rels (tabName,rc,tabDef,flds)
-  = return []
-  -- concat <$> mapM flds
-  -- where
-  --   [dbQ, schQ, rcQ] = map conT [db,sch,rc]
-  --   inst = [d|
-  --     instance CRecDef $(dbQ) $(schQ) $(rcQ) where
-  --       type TRecTab $(dbQ) $(schQ) $(rcQ) = $(return tabName)
-  --       type TRecFlds $(dbQ) $(schQ) $(rcQ)
-  --         = $(return $ toPromotedList $ map toPromotedPair flds)
-  --       type instance TRecChilds $(schQ) $(tabQ) = $(promotedNilT)
-  --       recToDB =
-  --     |]
---
---   [d|
---   -- class ( RecC db (TRecFlds db sch a)
---   --       , ChildsC db sch (TRecChilds db sch a)
---   --       , CTabDef sch (TRecTab db sch a)
---   --       ) => CRecDef db sch (a::Type) where
---   --   type TRecTab db sch a  :: Symbol
---   --   type TRecFlds db sch a :: [(Symbol,Type)]
---   --   type TRecChilds db sch a :: [(Symbol,Type)]
---   --   recToDB :: a -> [FieldDB db]
---   --   recFromDB :: [FieldDB db] -> (a,[FieldDB db])
---   instance CRecDef $(conT db) $(conT sch)
---
---   |]
+  = concat <$> sequence [concat <$> mapM decLens flds, inst]
+  where
+    [dbQ, schQ, rcQ] = map conT [db,sch,rc]
+    toDb = map snd flds
+    par = mkName "x"
+    inst = [d|
+      instance CRecDef $(dbQ) $(schQ) $(rcQ) where
+        type TRecTab $(dbQ) $(schQ) $(rcQ) = $(return tabName)
+        type TRecFlds $(dbQ) $(schQ) $(rcQ)
+          = $(return $ toPromotedList $ map toPromotedPair flds)
+        type TRecChilds $(dbQ) $(schQ) $(rcQ) = $(promotedNilT)
+        recFldNames = $(listE $ map (symToStrEQ . fst) flds)
+        recToDb c = concatMap ($ c) $(expLstToDb)
+        -- fldFromDb :: [FieldDB db] -> Either T.Text (val, [FieldDB db])
+        -- recFromDB :: [FieldDB db] -> Either T.Text (a,[FieldDB db])
+        recFromDb = undefined
+      |]
+    decLens (s,t) =
+      [d| instance RecLens $(return s) $(rcQ) $(return t) where
+            recLens = field @($(return s))
+      |]
+
+    expLstToDb = listE $ map expFldToDb flds
+      where
+        expFldToDb (s,t) = [e| fldToDb @($(dbQ)) @($(return s)) @($(return t))
+                             . (^. $(rl))
+                           |]
+           where
+     -- через quotation не получается, похоже на баг (из-за type appl, ghc-8.2)
+             rl = appTypeE (appTypeE (appTypeE
+                           [e| recLens |] (return s)) rcQ) (return t)
+    -- expFldFromDb (s,t) = [e| fldFromDb @($(dbQ)) @($(return s)) @($(return t))|]
+{-
+recFromDb xs = Customer <$> fld @"id" `ap` fld @"name" `ap` fld @"note"
+
+-}
 
 tabPreToTabRel
   :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
@@ -165,3 +180,6 @@ toPromotedList = \case
 
 toPromotedPair :: (Type,Type) -> Type
 toPromotedPair (x,y) = AppT (AppT (PromotedTupleT 2) x) y
+
+symToStrEQ :: Type -> ExpQ
+symToStrEQ (LitT (StrTyLit v)) = sigE (litE $ stringL v) [t| T.Text |]
