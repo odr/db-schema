@@ -20,7 +20,7 @@ module DbSchema.Db.Sqlite
 import           Control.Monad.Catch        (SomeException, catch, throwM)
 -- import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.Trans.Reader (ReaderT (..), ask)
-import           Data.Bifunctor             (first)
+import           Data.Bifunctor             (second)
 import           Data.ByteString            (ByteString (..))
 import           Data.Monoid                ((<>))
 import           Data.Proxy                 (Proxy (..))
@@ -36,6 +36,7 @@ import           GHC.TypeLits               (KnownSymbol)
 
 import           DbSchema.Db
 import           DbSchema.Def
+import           DbSchema.Util.ToStar
 
 data Sqlite
 
@@ -48,64 +49,6 @@ type instance DbTypeName Sqlite ByteString = "BLOB"
 type instance DbTypeName Sqlite Day = "TEXT"
 type instance DbTypeName Sqlite (Fixed a) = "INTEGER"
 type instance DbTypeName Sqlite UTCTime = "TEXT"
-
--- type instance DbTypeName Sqlite (DBEnum a) = "TEXT"
-
--- instance Convert [SQLData] (Int64,[SQLData]) where
---   convert (SQLInteger x : xs) = (x,xs)
---   convert x = error $ "Error on convert " ++ show x ++ " to Int64"
---
--- instance Convert Int64 [SQLData]  where
---   convert = (:[]) . SQLInteger
---
--- instance Convert [SQLData] (Double,[SQLData]) where
---   convert (SQLFloat x : xs) = (x,xs)
---   convert x = error $ "Error on convert " ++ show x ++ " to Double"
---
--- instance Convert Double [SQLData]  where
---   convert = (:[]) . SQLFloat
---
--- instance Convert [SQLData] (Text,[SQLData]) where
---   convert (SQLText x : xs) = (x,xs)
---   convert x = error $ "Error on convert " ++ show x ++ " to Text"
---
--- instance Convert Text [SQLData]  where
---   convert = (:[]) . SQLText
---
--- instance Convert [SQLData] (ByteString,[SQLData]) where
---   convert (SQLBlob x : xs) = (x,xs)
---   convert x = error $ "Error on convert " ++ show x ++ " to ByteString"
---
--- instance Convert ByteString [SQLData]  where
---   convert = (:[]) . SQLBlob
---
--- instance Convert (Maybe Int64) [SQLData] where
---   convert = maybe [SQLNull] convert
--- instance Convert (Maybe Double) [SQLData] where
---   convert = maybe [SQLNull] convert
--- instance Convert (Maybe Text) [SQLData] where
---   convert = maybe [SQLNull] convert
--- instance Convert (Maybe ByteString) [SQLData] where
---   convert = maybe [SQLNull] convert
---
--- instance Convert [SQLData] (Maybe Int64,[SQLData]) where
---   convert = convToMaybe SQLNull
--- instance Convert [SQLData] (Maybe Double,[SQLData]) where
---   convert = convToMaybe SQLNull
--- instance Convert [SQLData] (Maybe Text,[SQLData]) where
---   convert = convToMaybe SQLNull
--- instance Convert [SQLData] (Maybe ByteString,[SQLData]) where
---   convert = convToMaybe SQLNull
---
--- instance SConvNames AllFld s Int64
--- instance SConvNames AllFld s Text
--- instance SConvNames AllFld s Double
--- instance SConvNames AllFld s ByteString
--- type instance GPlus Int64 = False
--- type instance GPlus Text = False
--- type instance GPlus Double = False
--- type instance GPlus ByteString = False
--- type instance GPlus (Maybe a) = False
 
 instance Db Sqlite where
     type SessionParams Sqlite = Text
@@ -160,45 +103,53 @@ instance Db Sqlite where
       liftIO $ print $ "execCommand: " <> cmd
       ask >>= \conn -> liftIO (exec conn cmd)
 
-instance KnownSymbol name => CFldDef Sqlite name Int64 where
+instance ToStar name => CFldDef Sqlite name Int64 where
+  fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = defToDb @_ @Sqlite SQLInteger
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
                                    (\case {SQLInteger v -> Just v;_ -> Nothing})
 --
-instance KnownSymbol name => CFldDef Sqlite name T.Text where
+instance ToStar name => CFldDef Sqlite name T.Text where
+  fldDbDef = [(toStar @_ @name, ("TEXT", False))]
   fldToDb   = defToDb @_ @Sqlite  SQLText
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
                                    (\case {SQLText v -> Just v;_ -> Nothing})
 --
-instance KnownSymbol name => CFldDef Sqlite name Double where
+instance ToStar name => CFldDef Sqlite name Double where
+  fldDbDef = [(toStar @_ @name, ("FLOAT", False))]
   fldToDb   = defToDb @_ @Sqlite SQLFloat
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
                                    (\case {SQLFloat v -> Just v;_ -> Nothing})
 --
-instance KnownSymbol name => CFldDef Sqlite name ByteString where
+instance ToStar name => CFldDef Sqlite name ByteString where
+  fldDbDef = [(toStar @_ @name, ("BLOB", False))]
   fldToDb   = defToDb @_ @Sqlite SQLBlob
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name)
                                    (\case {SQLBlob v -> Just v;_ -> Nothing})
 --
-instance CFldDef Sqlite name val
-        => CFldDef Sqlite name (Maybe val) where
+instance CFldDef Sqlite name val => CFldDef Sqlite name (Maybe val) where
+  fldDbDef = map (second (second $ const True)) (fldDbDef @Sqlite @name @val)
   fldToDb   = defMbToDb (Proxy @Sqlite) (Proxy @name) SQLNull
   fldFromDb = defMbFromDb (Proxy @Sqlite) (Proxy @name)
                           (\case {SQLNull -> True; _ -> False})
 --
-instance KnownSymbol name => CFldDef Sqlite name Int where
+instance ToStar name => CFldDef Sqlite name Int where
+  fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral
   fldFromDb = fmap fromIntegral $ fldFromDb @Sqlite @name @Int64
 --
-instance KnownSymbol name => CFldDef Sqlite name (Fixed n) where
+instance ToStar name => CFldDef Sqlite name (Fixed n) where
+  fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral . (\(MkFixed v) -> v)
   fldFromDb = fmap (MkFixed . fromIntegral) $ fldFromDb @Sqlite @name @Int64
 
-instance KnownSymbol name => CFldDef Sqlite name Bool where
+instance ToStar name => CFldDef Sqlite name Bool where
+  fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . (\b -> if b then 1 else 0)
   fldFromDb = fmap (==1) $ fldFromDb @Sqlite @name @Int64
 
-instance KnownSymbol name => CFldDef Sqlite name Day where
+instance ToStar name => CFldDef Sqlite name Day where
+  fldDbDef = [(toStar @_ @name, ("TEXT", False))]
   fldToDb   = fldToDb @Sqlite @name @T.Text
                     . T.pack . formatTime defaultTimeLocale "%F"
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name) (\case
@@ -206,7 +157,8 @@ instance KnownSymbol name => CFldDef Sqlite name Day where
           _         -> Nothing
         )
 -- UTCTime
-instance KnownSymbol name => CFldDef Sqlite name UTCTime where
+instance ToStar name => CFldDef Sqlite name UTCTime where
+  fldDbDef = [(toStar @_ @name, ("TEXT", False))]
   fldToDb   = fldToDb @Sqlite @name @T.Text
                     . T.pack . formatTime defaultTimeLocale "%FT%X"
   fldFromDb = defFromDb @_ @Sqlite (Proxy @name) (\case

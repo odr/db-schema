@@ -106,6 +106,8 @@ type DbFldType b (a::Type)
 type family DbFldTypes b (a::[Type]) :: [(Symbol,Bool)] where
   DbFldTypes b '[] = '[]
   DbFldTypes b (a ': as) = DbFldType b a ': DbFldTypes b as
+
+
 -- genDefunSymbols [''DbTypeName, ''Nullable]
 
 -- type DbFieldTypes b a = DbFldTypes b (FldTypes NoLstFld a)

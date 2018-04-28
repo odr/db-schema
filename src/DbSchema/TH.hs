@@ -61,11 +61,12 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
     schQ = conT sch
     tabQ = return tabName
     instTabDef = [d|
+      type instance TRec $(schQ) $(tabQ) = $(conT rc)
       type instance TTabDef $(schQ) $(tabQ) = $(return tabDef)
       type instance TFlds $(schQ) $(tabQ)
         = $(return $ toPromotedList $ map toPromotedPair flds)
-      type instance TFldTypes $(schQ) $(tabQ)
-        = $(return $ toPromotedList $ map snd flds)
+      -- type instance TFldTypes $(schQ) $(tabQ)
+      --   = $(return $ toPromotedList $ map snd flds)
       |]
     instRel isFrom
       = (\ns -> map ((\(TySynInstD _ eqn) ->
@@ -74,9 +75,9 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
       $ toPromotedList
       $ map (\(_,(n,_)) -> n)
       $ filter (\((from,to),_) -> tabName == if isFrom then from else to) rels
-    instFldType = concat <$> mapM (\(fld,ft) ->
-        [d| type instance TFldType $(schQ) $(tabQ) $(return fld) = $(return ft) |]
-      ) flds
+    -- instFldType = concat <$> mapM (\(fld,ft) ->
+    --     [d| type instance TFldType $(schQ) $(tabQ) $(return fld) = $(return ft) |]
+    --   ) flds
     instDDLT = [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
 
     inst :: Q [Dec]
@@ -85,7 +86,7 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
     insts = concat <$> sequence
           [ instTabDef
           , concat <$> mapM instRel [True,False]
-          , instFldType
+          -- , instFldType
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
 
@@ -104,14 +105,20 @@ instRec db sch rels (tabName,rc,tabDef,flds)
         type TRecFlds $(dbQ) $(schQ) $(rcQ)
           = $(return $ toPromotedList $ map toPromotedPair flds)
         type TRecChilds $(dbQ) $(schQ) $(rcQ) = $(promotedNilT)
-        recFldNames = $(listE $ map (symToStrEQ . fst) flds)
+        recDbDef = concat $(expLstFldDbDef)
         recToDb c = concatMap ($ c) $(expLstToDb)
         recFromDb = $(expFromDb)
       |]
     decLens (s,t) =
+      --  TH плохо работает с DuplicateRecordFields. Через generics - работает.
+      --  Пока так...
       [d| instance RecLens $(return s) $(rcQ) $(return t) where
             recLens = field @($(return s))
       |]
+
+    expLstFldDbDef = listE $ map getFld flds
+      where
+        getFld (s,t) = [e| fldDbDef @($(dbQ)) @($(return s)) @($(return t)) |]
 
     expLstToDb = listE $ map expFldToDb flds
       where
