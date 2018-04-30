@@ -226,14 +226,16 @@ type family ChildsC db sch (cs :: [(Symbol,Type)]) :: Constraint where
 
 class ( RecC db (TRecFlds db sch a)
       , ChildsC db sch (TRecChilds db sch a)
-      , CTabDef sch (TRecTab db sch a)
+      -- , CTabDef sch (TRecTab db sch a)
       ) => CRecDef db (sch::Type) (a::Type) where
-  type TRecTab db sch a  :: Symbol
+  -- type TRecTab db sch a  :: Symbol
   type TRecFlds db sch a :: [(Symbol,Type)]
   type TRecChilds db sch a :: [(Symbol,Type)]
   recDbDef :: [(T.Text, (T.Text,Bool))]
   recToDb :: a -> [FieldDB db]
   recFromDb :: FromDbMonad db a
+  getFromDb :: [FieldDB db] -> Either T.Text a
+  getFromDb = evalState (runExceptT (recFromDb @db @sch))
 --------------------------------------------
 
 -- Simple lens by (fldName :: Symbol)

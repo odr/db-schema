@@ -2,6 +2,7 @@
 {-# LANGUAGE TypeApplications  #-}
 module Main where
 
+import           CustomerView
 import           Model
 
 main :: IO ()

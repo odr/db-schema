@@ -33,6 +33,7 @@ dependencies:
 - time
 - generic-lens
 - microlens
+- containers
 
 
 library:

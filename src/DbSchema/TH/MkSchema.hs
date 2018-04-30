@@ -6,17 +6,18 @@
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
-module DbSchema.TH where
+module DbSchema.TH.MkSchema where
 
 import           Data.Bifunctor      (second)
--- import           Data.Generics.Product.Fields
 import qualified Data.Text           as T
-import           Language.Haskell.TH
+import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q (..), TyLit (..),
+                                      Type (..), conT, litE, sigE, stringL)
 
-import           DbSchema.Db
-import           DbSchema.DDL
-import           DbSchema.Def
--- import           Lens.Micro
+import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
+import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
+                                      RelDef (..), TabDef (..))
+import           DbSchema.TH.MkView  (mkView, nameToSym, recToFlds, strToSym,
+                                      toPromotedList, toPromotedPair)
 
 
 mkSchema :: Name -> Name -> Q Type -> Q [Dec]
@@ -39,11 +40,9 @@ mkInsts db sch (tabs, rels) = concat <$> sequence
   , [d| instance CSchema $(schQ) where
           type TTables $(schQ) = $(return tabNames)
           type TRels   $(schQ) = $(return relNames)
-          -- tables               = $(return $ symLtoTextL tabL)
-          -- rels                 = $(return $ symLtoTextL relL)
         instance DDLSchema $(conT db) $(schQ)
     |]
-  , concat <$> mapM (instRec db sch rels) tabs
+  , concat <$> mapM (\(_,rc,_,_) -> mkView db sch rc) tabs
   ]
   where
     schQ = conT sch
@@ -65,8 +64,6 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
       type instance TTabDef $(schQ) $(tabQ) = $(return tabDef)
       type instance TFlds $(schQ) $(tabQ)
         = $(return $ toPromotedList $ map toPromotedPair flds)
-      -- type instance TFldTypes $(schQ) $(tabQ)
-      --   = $(return $ toPromotedList $ map snd flds)
       |]
     instRel isFrom
       = (\ns -> map ((\(TySynInstD _ eqn) ->
@@ -75,9 +72,6 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
       $ toPromotedList
       $ map (\(_,(n,_)) -> n)
       $ filter (\((from,to),_) -> tabName == if isFrom then from else to) rels
-    -- instFldType = concat <$> mapM (\(fld,ft) ->
-    --     [d| type instance TFldType $(schQ) $(tabQ) $(return fld) = $(return ft) |]
-    --   ) flds
     instDDLT = [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
 
     inst :: Q [Dec]
@@ -86,68 +80,16 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
     insts = concat <$> sequence
           [ instTabDef
           , concat <$> mapM instRel [True,False]
-          -- , instFldType
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
 
-instRec :: Name -> Name -> [((Type,Type),(Type, Type))]
-        -> (Type, Name, Type, [(Type,Type)])
-        -> Q [Dec]
-instRec db sch rels (tabName,rc,tabDef,flds)
-  = concat <$> sequence [concat <$> mapM decLens flds, inst]
-  where
-    [dbQ, schQ, rcQ] = map conT [db,sch,rc]
-    toDb = map snd flds
-    par = mkName "x"
-    inst = [d|
-      instance CRecDef $(dbQ) $(schQ) $(rcQ) where
-        type TRecTab $(dbQ) $(schQ) $(rcQ) = $(return tabName)
-        type TRecFlds $(dbQ) $(schQ) $(rcQ)
-          = $(return $ toPromotedList $ map toPromotedPair flds)
-        type TRecChilds $(dbQ) $(schQ) $(rcQ) = $(promotedNilT)
-        recDbDef = concat $(expLstFldDbDef)
-        recToDb c = concatMap ($ c) $(expLstToDb)
-        recFromDb = $(expFromDb)
-      |]
-    decLens (s,t) =
-      --  TH плохо работает с DuplicateRecordFields. Через generics - работает.
-      --  Пока так...
-      [d| instance RecLens $(return s) $(rcQ) $(return t) where
-            recLens = field @($(return s))
-      |]
-
-    expLstFldDbDef = listE $ map getFld flds
-      where
-        getFld (s,t) = [e| fldDbDef @($(dbQ)) @($(return s)) @($(return t)) |]
-
-    expLstToDb = listE $ map expFldToDb flds
-      where
-        expFldToDb (s,t) = [e| fldToDb @($(dbQ)) @($(return s)) @($(return t))
-                             . (^. $(rl)) |]
-           where
-     -- через quotation не получается, похоже на баг (из-за type appl, ghc-8.2)
-             rl = appTypeE (appTypeE (appTypeE
-                           [e| recLens |] (return s)) rcQ) (return t)
-    expFromDb =
-      case map (\(s,t) -> [e| fldFromDb @($(dbQ)) @($(return s))
-                                        @($(return t)) |]) flds of
-        (x:xs) -> foldl (\b a -> [e| (<*>) $(b) $(a) |])
-                        [e| $(conByType rc) <$> $(x)|] xs
-        _ -> fail $ "Error for fldFromDb for " ++ pprint db ++ ", "
-                  ++ pprint sch ++ ", " ++ pprint rc
-
-conByType :: Name -> ExpQ
-conByType n = reify n >>= \case
-  TyConI (DataD _ _ _ _ [RecC c _] _) -> conE c
-  _ -> fail $ "Error on getting single constructor for type " ++ pprint n
-
 tabPreToTabRel
   :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
-tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rec)) pk) uk) ai) relTo) = do
-  flds <- recToFlds rec
+tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rc)) pk) uk) ai) relTo) = do
+  flds <- recToFlds rc
   return
     ( ( tabName
-      , rec
+      , rc
       , AppT (AppT (AppT (AppT (PromotedT 'TabDefC)
                                (toPromotedList $ map fst flds)) pk) uk) ai
       , flds
@@ -155,7 +97,7 @@ tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rec)) pk) uk) ai) relTo) = 
     , map (relToToRelDef tabName) $ fromPromotedList relTo
     )
   where
-    tabName = nameToSym rec
+    tabName = nameToSym rc
 
 -- Tab -> rel -> ((from,to),(rel,def))
 relToToRelDef :: Type -> Type -> ((Type,Type),(Type,Type))
@@ -165,32 +107,11 @@ relToToRelDef rfrom (AppT (AppT (AppT (AppT _ (LitT (StrTyLit rname))) rto) rcol
   )
 relToToRelDef rfrom x = error "err in relToToRelDef"
 
-recToFlds :: Name -> Q [(Type,Type)]
-recToFlds n = fmap (\case
-    TyConI (DataD _ _ _ _ [RecC _ flds] _) ->
-      map (\(name,_,typ) -> (nameToSym name,typ)) flds
-    x -> error $ "invalid info in recToFld: " ++ show x
-  ) $ reify n
-
-nameToSym :: Name -> Type
-nameToSym = strToSym . nameBase
-
-strToSym :: String -> Type
-strToSym = LitT . StrTyLit
-
 fromPromotedList :: Type -> [Type]
 fromPromotedList = \case
   PromotedNilT -> []
   AppT (AppT PromotedConsT x) xs -> x : fromPromotedList xs
   _ -> error "Invalid promoted list"
-
-toPromotedList :: [Type] -> Type
-toPromotedList = \case
-  [] -> PromotedNilT
-  (x:xs) -> AppT (AppT PromotedConsT x) (toPromotedList xs)
-
-toPromotedPair :: (Type,Type) -> Type
-toPromotedPair (x,y) = AppT (AppT (PromotedTupleT 2) x) y
 
 symToStrEQ :: Type -> ExpQ
 symToStrEQ (LitT (StrTyLit v)) = sigE (litE $ stringL v) [t| T.Text |]

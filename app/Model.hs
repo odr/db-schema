@@ -9,18 +9,18 @@
 module Model(module Model) where
 
 import           Data.Fixed            as Model
-import           Data.Generics.Product
+import           Data.Generics.Product (field)
 import           Data.Int              as Model (Int64)
 import           Data.Text
 import           Data.Time             as Model
 import           GHC.Generics
-import           Lens.Micro
+import           Lens.Micro            ((^.))
 
 import           DbSchema.Db           as Model
 import           DbSchema.Db.Sqlite    as Model (Sqlite)
 import           DbSchema.DDL          as Model
 import           DbSchema.Def          as Model
-import           DbSchema.TH           (mkSchema)
+import           DbSchema.TH.MkSchema  (mkSchema)
 
 type Dbs = Sqlite
 
@@ -61,14 +61,13 @@ data OrderPosition = OrderPosition  { orderId      :: Int
                                     , currencyCode :: Text
                                     } deriving (Show,Eq,Ord,Generic)
 
-data Payments = Payments  { id           :: Int
-                          , orderId      :: Int
-                          , customerId   :: Int
-                          , dt           :: UTCTime
-                          , val          :: Fixed E2
-                          , currencyCode :: Text
-                          , note         :: Text
-                          } deriving (Show,Eq,Ord,Generic)
+data Payment = Payment  { id           :: Int
+                        , orderId      :: Int
+                        , dt           :: UTCTime
+                        , val          :: Fixed E2
+                        , currencyCode :: Text
+                        , note         :: Text
+                        } deriving (Show,Eq,Ord,Generic)
 
 data Currency = Currency { code :: Text
                          , name :: Text
@@ -81,38 +80,37 @@ data CurrRate = CurrRate { currencyCode :: Text
 
 data Sch
 
-mkSchema ''Sqlite ''Sch [t|
+mkSchema ''Dbs ''Sch [t|
   '[TPD Customer '["id"] '[ '["name"]] True '[]
 
   , TPD Address '["id"] '[] True
-      '[ RT "AddrCust" "Customer" '[ '("customerId","id")] DcCascade
+      '[ RT "addrCust" "Customer" '[ '("customerId","id")] DcCascade
       ]
 
   , TPD Article '["id"] '[ '["name"]] False '[]
 
   , TPD ArticlePrice '["articleId", "dayBegin"] '[] False
-      '[ RT "ArtPrice" "Article" '[ '("articleId","id")] DcCascade
+      '[ RT "artPrice" "Article" '[ '("articleId","id")] DcCascade
       ]
 
   , TPD Orders '["id"] '[ '["num"]] True
-      '[RT "OrdCust" "Customer" '[ '("customerId","id")] DcCascade
-      , RT "OrdPayer" "Customer" '[ '("payerId","id")] DcRestrict
+      '[RT "ordCust" "Customer" '[ '("customerId","id")] DcCascade
+      , RT "ordPayer" "Customer" '[ '("payerId","id")] DcRestrict
       ]
 
   , TPD OrderPosition '["orderId","num"] '[] True
-      '[RT "OpOrd" "Orders" '[ '("orderId","id")] DcCascade
-      , RT "OpCurr" "Currency" '[ '("currencyCode", "code")] DcRestrict
+      '[RT "opOrd" "Orders" '[ '("orderId","id")] DcCascade
+      , RT "opCurr" "Currency" '[ '("currencyCode", "code")] DcRestrict
       ]
 
-  , TPD Payments '["id"] '[ '["orderId", "customerId", "dt"]] True
-      '[RT "PaymOrd"  "Orders"   '[ '("orderId","id")]    DcRestrict
-      , RT "PaymCust" "Customer" '[ '("customerId","id")] DcCascade
-      , RT "PaymCurr" "Currency" '[ '("currencyCode", "code")] DcRestrict
+  , TPD Payment '["id"] '[] True
+      '[RT "paymOrd"  "Orders"   '[ '("orderId","id")]    DcRestrict
+      , RT "paymCurr" "Currency" '[ '("currencyCode", "code")] DcRestrict
       ]
   , TPD Currency '["code"] '[ '["name"]] False '[]
 
   , TPD CurrRate '["currencyCode","day"] '[] False
-      '[RT "CurrRateCurr" "Currency" '[ '("currencyCode", "code")] DcCascade
+      '[RT "currRateCurr" "Currency" '[ '("currencyCode", "code")] DcCascade
       ]
   ]
   |]
