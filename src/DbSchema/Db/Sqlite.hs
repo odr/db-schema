@@ -40,15 +40,15 @@ import           DbSchema.Util.ToStar
 
 data Sqlite
 
-type instance DbTypeName Sqlite Int64      = "INTEGER"
-type instance DbTypeName Sqlite Int        = "INTEGER"
-type instance DbTypeName Sqlite Bool       = "INTEGER"
-type instance DbTypeName Sqlite Text       = "TEXT"
-type instance DbTypeName Sqlite Double     = "FLOAT"
-type instance DbTypeName Sqlite ByteString = "BLOB"
-type instance DbTypeName Sqlite Day = "TEXT"
-type instance DbTypeName Sqlite (Fixed a) = "INTEGER"
-type instance DbTypeName Sqlite UTCTime = "TEXT"
+-- type instance DbTypeName Sqlite Int64      = "INTEGER"
+-- type instance DbTypeName Sqlite Int        = "INTEGER"
+-- type instance DbTypeName Sqlite Bool       = "INTEGER"
+-- type instance DbTypeName Sqlite Text       = "TEXT"
+-- type instance DbTypeName Sqlite Double     = "FLOAT"
+-- type instance DbTypeName Sqlite ByteString = "BLOB"
+-- type instance DbTypeName Sqlite Day = "TEXT"
+-- type instance DbTypeName Sqlite (Fixed a) = "INTEGER"
+-- type instance DbTypeName Sqlite UTCTime = "TEXT"
 
 instance Db Sqlite where
     type SessionParams Sqlite = Text

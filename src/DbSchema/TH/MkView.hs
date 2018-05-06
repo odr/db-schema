@@ -1,8 +1,11 @@
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
@@ -11,7 +14,8 @@ module DbSchema.TH.MkView where
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.RWS
 import           Data.Bifunctor            (second)
-import           Data.List                 (partition, (\\))
+import           Data.List                 (nub, partition, (\\))
+import qualified Data.Map                  as M
 import qualified Data.Set                  as S
 import qualified Data.Text                 as T
 import           Language.Haskell.TH
@@ -19,49 +23,76 @@ import           Language.Haskell.TH
 import           DbSchema.Db
 import           DbSchema.DDL
 import           DbSchema.Def
+import           DbSchema.DML              (DML)
+-- import           DbSchema.TH.Util
+
 -- import           DbSchema.TH.MkSchema
 
-type MkViewMonad = RWST (Name,Name,S.Set Name) [Dec] (S.Set Name) Q
+reifyShow :: Name -> ExpQ
+reifyShow n = reify n >>= stringE . show
 
-mkView :: Name -> Name -> Name -> DecsQ
-mkView db sch rc = do
+data ViewEnv = VE { veDb   :: Name
+                  , veSch  :: Name
+                  , veRels :: M.Map T.Text (RelDef T.Text)
+                  , veInst :: S.Set (Type, Name)
+                  }
+type MkViewMonad = RWST ViewEnv [Dec] (S.Set (Type, Name)) Q
+
+mkView :: Name -> Name -> String -> M.Map T.Text (RelDef T.Text) -> Name -> DecsQ
+mkView db sch sTabName rels rc = do
   (ClassI _ ri) <- reify ''CRecDef
   crd <- [t|CRecDef|]
-  snd <$> execRWST  (mkViewM rc)
-                    (db, sch
-                      , S.fromList $ map getInst $ filter (isInst crd) ri)
+  snd <$> execRWST  (mkViewM tn rc)
+                    (VE db sch rels $ S.fromList $ map getInst $ filter (isInst crd) ri)
                     mempty
-  -- InstanceD Nothing [] (AppT (AppT (AppT (ConT DbSchema.Def.CRecDef)
-  --      (ConT Model.Dbs)) (ConT Model.Sch)) (ConT Model.CurrRate)) []
   where
-    isInst crd (InstanceD _ _ (AppT (AppT (AppT c t1) t2) (ConT _)) _)
+    tn = LitT (StrTyLit sTabName)
+    isInst crd (InstanceD _ _
+                  (AppT (AppT (AppT (AppT (AppT c t1) t2) _) (ConT _)) _) _)
       = c == crd && t1 == ConT db && t2 == ConT sch
     isInst crd _ = False
-    getInst (InstanceD _ _ (AppT _ (ConT t)) _) = t
+    getInst (InstanceD _ _ (AppT (AppT (AppT _ t3) (ConT t4)) _) _) = (t3,t4)
 
-mkViewM :: Name -> MkViewMonad ()
-mkViewM rc = do
+mkViewM :: Type -> Name -> MkViewMonad ()
+mkViewM tn rc = do
   flds <- lift $ recToFlds rc
   let (fs, cs) = partition (isFld . snd) flds
-  (db,sch,ss1) <- ask
-  ss2 <- get
-  let newInst = S.fromList (map (getListType . snd) cs) S.\\ ss1 S.\\ ss2
-  put newInst
-  mapM_ mkViewM newInst
+  (VE db sch rls ss1) <- ask
   let [dbQ, schQ, rcQ] = map conT [db,sch,rc]
+  ss2 <- get
+  -- addInst <- mapM (\(a,AppT ListT (ConT t)) -> (,t) <$> childTab a rels) cs
+        -- fromMaybe (error "") $ (\ins -> S.fromList ins S.\\ ss1 S.\\ ss2)
+  let newInst =
+        S.fromList (map (
+            \(LitT (StrTyLit s),AppT ListT (ConT t)) ->
+              maybe (error
+                    $ "There is no relation who corresponding to the field '"
+                      ++ s ++ "'"
+                    )
+                    ((,t) . strToSym . T.unpack . rdTo)
+                    $ M.lookup (T.pack s) rls) cs
+                )
+                S.\\ ss1 S.\\ ss2
+
+  put newInst
   lift (concat <$> mapM (decLens rcQ) flds) >>= tell
+  mapM_ (uncurry mkViewM) newInst
   rs <- lift $ [d|
     instance CRecDef $(dbQ) $(schQ) $(rcQ) where
       -- type TRecTab $(dbQ) $(schQ) $(rcQ) = $(tabq)
       type TRecFlds $(dbQ) $(schQ) $(rcQ)
-        = $(return $ toPromotedList $ map toPromotedPair fs)
+        = $(return (toPromotedList $ map toPromotedPair fs))
       type TRecChilds $(dbQ) $(schQ) $(rcQ)
-        = $(return $ toPromotedList
-                   $ map (toPromotedPair . second (ConT . getListType)) cs)
+        = $(return (toPromotedList
+                      $ map (toPromotedPair . second (ConT . getListType)) cs))
 
       recDbDef  = concat $(expLstFldDbDef dbQ fs)
       recToDb c = concatMap ($ c) $(expLstToDb dbQ rcQ fs)
       recFromDb = $(expFromDb db sch flds)
+
+    instance (CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[]
+            , SetPK (TTabDef $(schQ) $(return tn)) $(dbQ) $(rcQ))
+          => DML $(dbQ) $(schQ) $(return tn) $(rcQ) p
     |]
   tell rs
   where
@@ -71,7 +102,7 @@ mkViewM rc = do
     getListType (AppT ListT (ConT t)) = t
 
     decLens rcQ (s,t) =
-      --  TH плохо работает с DuplicateRecordFields. Через generics - работает.
+      --  TH не работает с DuplicateRecordFields. Через generics - работает.
       --  Пока так...
       [d| instance RecLens $(return s) $(rcQ) $(return t) where
             recLens = field @($(return s))
@@ -102,11 +133,11 @@ mkViewM rc = do
         [dbQ, schQ, rcQ] = map conT [db,sch,rc]
 --
 recToFlds :: Name -> Q [(Type,Type)]
-recToFlds n = fmap (\case
+recToFlds n = (\case
     TyConI (DataD _ _ _ _ [RecC _ flds] _) ->
       map (\(name,_,typ) -> (nameToSym name,typ)) flds
     x -> error $ "invalid info in recToFld: " ++ show x
-  ) $ reify n
+  ) <$> reify n
 
 toPromotedList :: [Type] -> Type
 toPromotedList = \case

@@ -1,14 +1,18 @@
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE UndecidableInstances  #-}
 module CustomerView where
 
 import           Data.Generics.Product (field)
+import           DbSchema.DML
 import           GHC.Generics
 import           Lens.Micro            ((^.))
 
@@ -30,7 +34,7 @@ import           Model
 Альтернатива
 
 -}
-data CustomerT = CustomerT  { id       :: Int
+data CustomerT = CustomerT  { id       :: Int64
                             , name     :: Text
                             , addrCust :: [AddressT]
                             , note     :: Text
@@ -38,28 +42,28 @@ data CustomerT = CustomerT  { id       :: Int
                             , ordPayer :: [OrderT]
                             } deriving (Show,Eq,Ord,Generic)
 
-data AddressT = AddressT  { id       :: Int
+data AddressT = AddressT  { id       :: Int64
                           , val      :: Text
                           , isActive :: Bool
                           } deriving (Show,Eq,Ord,Generic)
 
-data OrderT = OrderT  { id         :: Int
+data OrderT = OrderT  { id         :: Int64
                       , num        :: Text
-                      , customerId :: Int
-                      , payerId    :: Maybe Int
+                      , customerId :: Int64
+                      , payerId    :: Maybe Int64
                       , day        :: Day
                       , opOrd      :: [OrderPosT]
                       , paymOrd    :: [PaymentT]
                       } deriving (Show,Eq,Ord,Generic)
 
 data OrderPosT = OrderPosT  { num          :: Int
-                            , articleId    :: Int
+                            , articleId    :: Int64
                             , quantity     :: Int
                             , price        :: Fixed E2
                             , currencyCode :: Text
                             } deriving (Show,Eq,Ord,Generic)
 
-data PaymentT = PaymentT  { id           :: Int
+data PaymentT = PaymentT  { id           :: Int64
                           , dt           :: UTCTime
                           , val          :: Fixed E2
                           , currencyCode :: Text
@@ -67,4 +71,4 @@ data PaymentT = PaymentT  { id           :: Int
                           } deriving (Show,Eq,Ord,Generic)
 
 
-mkView ''Dbs ''Sch ''CustomerT
+mkView ''Dbs ''Sch "Customer" (rels @Sch) ''CustomerT

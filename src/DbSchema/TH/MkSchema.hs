@@ -42,19 +42,17 @@ mkInsts db sch (tabs, rels) = concat <$> sequence
           type TRels   $(schQ) = $(return relNames)
         instance DDLSchema $(conT db) $(schQ)
     |]
-  , concat <$> mapM (\(_,rc,_,_) -> mkView db sch rc) tabs
+  , concat <$> mapM (\(LitT (StrTyLit tn),rc,_,_) -> mkView db sch tn mempty rc) tabs
   ]
   where
     schQ = conT sch
-    tabL = map (\(tn,_,_,_)->tn) tabs
-    relL = map (\(_,(rn,_))->rn) rels
-    tabNames = toPromotedList tabL
-    relNames = toPromotedList relL
+    tabNames = toPromotedList $ map (\(tn,_,_,_)->tn) tabs
+    relNames = toPromotedList $ map (\(_,(rn,_))->rn) rels
 
 instTab :: Name -> Name -> [((Type,Type),(Type, Type))]
         -> (Type, Name, Type, [(Type,Type)])
         -> Q [Dec]
-instTab db sch rels (tabName,rc,tabDef,flds) = do
+instTab db sch rels (tabName,rc,tabDef,flds) =
   concat <$> sequence [inst >>= mapM (\i -> setInsts i <$> insts), instDDLT]
   where
     schQ = conT sch
@@ -62,12 +60,13 @@ instTab db sch rels (tabName,rc,tabDef,flds) = do
     instTabDef = [d|
       type instance TRec $(schQ) $(tabQ) = $(conT rc)
       type instance TTabDef $(schQ) $(tabQ) = $(return tabDef)
-      type instance TFlds $(schQ) $(tabQ)
-        = $(return $ toPromotedList $ map toPromotedPair flds)
+      type instance TFlds $(schQ) $(tabQ) = $(fldsQ)
       |]
+      where
+        fldsQ = return $ toPromotedList $ map toPromotedPair flds
     instRel isFrom
-      = (\ns -> map ((\(TySynInstD _ eqn) ->
-                   TySynInstD (if isFrom then ''TRelFrom else ''TRelTo) eqn))
+      = (\ns -> map (\(TySynInstD _ eqn) ->
+                   TySynInstD (if isFrom then ''TRelFrom else ''TRelTo) eqn)
             <$> [d|type instance TRelFrom $(schQ) $(tabQ) = $(return ns)|])
       $ toPromotedList
       $ map (\(_,(n,_)) -> n)
