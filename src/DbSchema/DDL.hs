@@ -32,14 +32,25 @@ class (Db b, CSchema sch, CTabDef sch s, CRecDef b sch (TRec sch s))
   createTable :: MonadIO m => SessionMonad b m ()
   createTable = execCommand @b (ddlCreateTableText @b @sch @s)
 
+  ddlDropTableText :: T.Text
+  ddlDropTableText = dropTableText @b (tabName @sch @s)
+
+  dropTable :: MonadIO m => SessionMonad b m ()
+  dropTable = execCommand @b (ddlDropTableText @b @sch @s)
+
+
 class DDLTabs b sch (ss::[Symbol]) where
   createTables :: MonadIO m => SessionMonad b m ()
+  dropTables   :: MonadIO m => SessionMonad b m ()
 
 instance DDLTabs b sch '[] where
   createTables = return ()
+  dropTables   = return ()
 
 instance (DDLTab b sch s, DDLTabs b sch ss) => DDLTabs b sch (s:ss) where
   createTables = createTable @b @sch @s >> createTables @b @sch @ss
+  dropTables = dropTable @b @sch @s >> dropTables @b @sch @ss
+
 
 class (Db b, CSchema sch, CRelDef sch s) =>  DDLRel b sch s where
   ddlCreateRelText :: T.Text
@@ -68,3 +79,6 @@ class (CSchema sch, DDLTabs b sch (TTables sch), DDLRels b sch (TRels sch))
   createSchema = do
     createTables @b @sch @(TTables sch)
     createRels @b @sch @(TRels sch)
+
+  dropSchema :: MonadIO m => SessionMonad b m ()
+  dropSchema = dropTables @b @sch @(TTables sch)

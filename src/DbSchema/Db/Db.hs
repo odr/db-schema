@@ -45,6 +45,9 @@ class Db back where
     where
       rc (n, (t,b)) = format "{} {} {} NULL" (n,t, if b then T.empty else "NOT")
 
+  dropTableText :: Text -> Text
+  dropTableText = format "DROP TABLE {}" . Only
+
   createRelText :: Text -> Text -> Text -> [(Text,Text)] -> Text
   createRelText c f t =
     format "ALTER TABLE {} ADD CONSTRAINT {} FOREIGN KEY ({}) REFERENCES {}({})"

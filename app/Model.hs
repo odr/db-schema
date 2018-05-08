@@ -26,45 +26,45 @@ import           DbSchema.TH.MkSchema  (mkSchema)
 
 type Dbs = Sqlite
 
-data Customer = Customer  { id   :: Int
+data Customer = Customer  { id   :: Int64
                           , name :: Text
                           , note :: Text
                           } deriving (Show,Eq,Ord,Generic)
 
-data Address = Address  { id         :: Int
-                        , customerId :: Int
+data Address = Address  { id         :: Int64
+                        , customerId :: Int64
                         , val        :: Text
                         , isActive   :: Bool
                         } deriving (Show,Eq,Ord,Generic)
 
-data Article = Article  { id    :: Int
+data Article = Article  { id    :: Int64
                         , name  :: Text
                         , price :: Fixed E2
                         } deriving (Show,Eq,Ord,Generic)
 
-data ArticlePrice = ArticlePrice { articleId :: Int
+data ArticlePrice = ArticlePrice { articleId :: Int64
                                  , dayBegin  :: Day
                                  , dayEnd    :: Maybe Day
                                  , val       :: Fixed E2
                                  } deriving (Show,Eq,Ord,Generic)
 
-data Orders = Orders  { id         :: Int
+data Orders = Orders  { id         :: Int64
                       , num        :: Text
-                      , customerId :: Int
-                      , payerId    :: Maybe Int
+                      , customerId :: Int64
+                      , payerId    :: Maybe Int64
                       , day        :: Day
                       } deriving (Show,Eq,Ord,Generic)
 
-data OrderPosition = OrderPosition  { orderId      :: Int
+data OrderPosition = OrderPosition  { orderId      :: Int64
                                     , num          :: Int
-                                    , articleId    :: Int
+                                    , articleId    :: Int64
                                     , quantity     :: Int
                                     , price        :: Fixed E2
                                     , currencyCode :: Text
                                     } deriving (Show,Eq,Ord,Generic)
 
-data Payment = Payment  { id           :: Int
-                        , orderId      :: Int
+data Payment = Payment  { id           :: Int64
+                        , orderId      :: Int64
                         , dt           :: UTCTime
                         , val          :: Fixed E2
                         , currencyCode :: Text
@@ -100,9 +100,10 @@ mkSchema ''Dbs ''Sch [t|
       , RT "ordPayer" "Customer" '[ '("payerId","id")] DcRestrict
       ]
 
-  , TPD OrderPosition '["orderId","num"] '[] True
+  , TPD OrderPosition '["orderId","num"] '[] False
       '[RT "opOrd" "Orders" '[ '("orderId","id")] DcCascade
       , RT "opCurr" "Currency" '[ '("currencyCode", "code")] DcRestrict
+      , RT "opArt" "Article" '[ '("articleId", "id")] DcRestrict
       ]
 
   , TPD Payment '["id"] '[] True

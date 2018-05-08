@@ -25,13 +25,14 @@ import qualified Data.Map                         as M
 import           Data.Singletons.Prelude
 import           Data.Singletons.Prelude.List
 import           Data.Singletons.TH               (promote)
-import           Data.Tagged                      (Tagged (..))
+import           Data.Tagged                      (Tagged (..), untag)
 import qualified Data.Text                        as T
-import           Lens.Micro                       ((&), (.~))
+import           Lens.Micro                       ((&), (.~), (^.))
 import           Type.Reflection                  (Typeable, typeRep)
 
 import           DbSchema.Db                      (Db (..), DelCons, MonadIO,
                                                    SessionMonad)
+import           DbSchema.Util.RecLens
 import           DbSchema.Util.ToStar             (TStar, ToStar (..))
 
 
@@ -64,7 +65,7 @@ promote [d|
   isRefToKey rd td = map snd (rdCols rd) `elem` tdKey td : tdUniq td
 
   isRefFromEx :: Eq s => RelDef s -> TabDef s -> Bool
-  isRefFromEx rd td = null $ (map fst (rdCols rd)) \\ tdFlds td
+  isRefFromEx rd td = null $ map fst (rdCols rd) \\ tdFlds td
 
   lookups :: Eq s => [(s,t)] -> [s] -> [Maybe t]
   lookups sts = map (`lookup` sts)
@@ -280,20 +281,14 @@ instance (CRecDef db sch (Tagged '[x1] a), CRecDef db sch (Tagged (x2 ': xs) b))
   recFromDb = (\(Tagged a) (Tagged b) -> Tagged (a,b))
           <$> recFromDb @db @sch @(Tagged '[x1] a)
           <*> recFromDb @db @sch @(Tagged (x2 ': xs) b)
-
--- Simple lens by (fldName :: Symbol)
-class RecLens (s :: Symbol) b a where
-  recLens :: Functor f => (a -> f a) -> b -> f b
-
 --
 class SetPK (td :: TabDef Symbol) db r where
   setPK :: MonadIO m => r -> SessionMonad db m r
 
-
 instance SetPK (TabDefC f k u False) db r where
   setPK = return
 
-instance (Db db, RecLens k r (GenKey db))
+instance (Db db, RecLens k r, GenKey db ~ TLens k r)
       => SetPK (TabDefC f '[k] u True) db r where
   setPK r = do
     k <- getLastKey @db

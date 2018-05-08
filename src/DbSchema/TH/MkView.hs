@@ -24,7 +24,7 @@ import           DbSchema.Db
 import           DbSchema.DDL
 import           DbSchema.Def
 import           DbSchema.DML              (DML)
--- import           DbSchema.TH.Util
+import           DbSchema.Util.RecLens
 
 -- import           DbSchema.TH.MkSchema
 
@@ -33,6 +33,7 @@ reifyShow n = reify n >>= stringE . show
 
 data ViewEnv = VE { veDb   :: Name
                   , veSch  :: Name
+                  -- , veTabs :: M.Map T.Text (TabDef T.Text)
                   , veRels :: M.Map T.Text (RelDef T.Text)
                   , veInst :: S.Set (Type, Name)
                   }
@@ -42,9 +43,10 @@ mkView :: Name -> Name -> String -> M.Map T.Text (RelDef T.Text) -> Name -> Decs
 mkView db sch sTabName rels rc = do
   (ClassI _ ri) <- reify ''CRecDef
   crd <- [t|CRecDef|]
-  snd <$> execRWST  (mkViewM tn rc)
-                    (VE db sch rels $ S.fromList $ map getInst $ filter (isInst crd) ri)
-                    mempty
+  snd <$> execRWST (mkViewM tn rc)
+                   (VE db sch rels
+                     $ S.fromList $ map getInst $ filter (isInst crd) ri)
+                   mempty
   where
     tn = LitT (StrTyLit sTabName)
     isInst crd (InstanceD _ _
@@ -69,14 +71,15 @@ mkViewM tn rc = do
                     $ "There is no relation who corresponding to the field '"
                       ++ s ++ "'"
                     )
-                    ((,t) . strToSym . T.unpack . rdTo)
+                    ((,t) . strToSym . T.unpack . rdFrom)
                     $ M.lookup (T.pack s) rls) cs
                 )
                 S.\\ ss1 S.\\ ss2
 
   put newInst
-  lift (concat <$> mapM (decLens rcQ) flds) >>= tell
   mapM_ (uncurry mkViewM) newInst
+  lift (concat <$> mapM (decLens rcQ) flds) >>= tell
+  -- lift $ reportWarning $ "instances for " ++ pprint tn ++ ", " ++ pprint rc
   rs <- lift $ [d|
     instance CRecDef $(dbQ) $(schQ) $(rcQ) where
       -- type TRecTab $(dbQ) $(schQ) $(rcQ) = $(tabq)
@@ -90,9 +93,8 @@ mkViewM tn rc = do
       recToDb c = concatMap ($ c) $(expLstToDb dbQ rcQ fs)
       recFromDb = $(expFromDb db sch flds)
 
-    instance (CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[]
-            , SetPK (TTabDef $(schQ) $(return tn)) $(dbQ) $(rcQ))
-          => DML $(dbQ) $(schQ) $(return tn) $(rcQ) p
+    instance (CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[])
+          => DML $(dbQ) $(schQ) $(return tn) p $(rcQ)
     |]
   tell rs
   where
@@ -104,7 +106,8 @@ mkViewM tn rc = do
     decLens rcQ (s,t) =
       --  TH не работает с DuplicateRecordFields. Через generics - работает.
       --  Пока так...
-      [d| instance RecLens $(return s) $(rcQ) $(return t) where
+      [d| instance RecLens $(return s) $(rcQ) where
+            type TLens $(return s) $(rcQ) = $(return t)
             recLens = field @($(return s))
       |]
 
@@ -118,8 +121,7 @@ mkViewM tn rc = do
                              . (^. $(rl)) |]
            where
      -- через quotation не получается, похоже на баг (из-за type appl, ghc-8.2)
-             rl = appTypeE (appTypeE (appTypeE
-                           [e| recLens |] (return s)) rcQ) (return t)
+             rl = appTypeE (appTypeE [e| recLens |] (return s)) rcQ
     expFromDb db sch flds =
       case map (\(s,t) -> if isFld t
                   then [e| fldFromDb @($(dbQ)) @($(return s)) @($(return t)) |]
