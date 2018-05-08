@@ -57,7 +57,20 @@ instance RecLens s (Tagged ss v2)
 class Rec r where
   type TRec r :: [(Symbol,Type)]
 
-instance (Rec r, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
+instance Rec (Tagged ('[] :: [Symbol]) ())   where
+  type TRec (Tagged ('[] :: [Symbol]) ()) = '[]
+
+instance Rec (Tagged '[(n::Symbol)] v)   where
+  type TRec (Tagged '[n] v) = '[ '(n,v)]
+
+instance Rec (Tagged (n2 ': ns) v2)
+      => Rec (Tagged (n1 ': n2 ': ns :: [Symbol]) (v1,v2))   where
+  type TRec (Tagged (n1 ': n2 ': ns) (v1,v2)) =
+    '(n1,v1) ': TRec (Tagged (n2 ': ns) v2)
+
+
+
+instance (Rec v1, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
       => RecLens s (v1, v2) where
   type TLens s (v1,v2) = TLensB (IsJust (Lookup s (TRec v1))) s (v1,v2)
   recLens = recLensB @b @s @(v1,v2)

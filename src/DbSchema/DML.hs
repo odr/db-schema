@@ -46,7 +46,7 @@ class ( Db b, CRecDef b sch r
       , CTabDef sch t
       , CRecDef b sch p, TRecChilds b sch p ~ '[]
       , SetPK (TTabDef sch t) b r
-      , DmlChild b sch (TRecChilds b sch r) r
+      , DmlChild b sch (TRecChilds b sch r) p r
       )
     => DML b sch (t::Symbol) p r where
   dmlInsert :: ( AppMon f m
@@ -60,7 +60,8 @@ class ( Db b, CRecDef b sch r
     -- liftIO $ print vals
     cmd <- prepareCommand @b sql
     rs <- finally (mapM (run cmd) vals) (finalizePrepared @b cmd)
-    childInsert @b @sch @(TRecChilds b sch r) rs
+    childInsert @b @sch @(TRecChilds b sch r)
+      $ (,) <$> (fst <$> vals) <*> rs
 
     where
       td = toStar @_ @(TTabDef sch t)
@@ -86,27 +87,28 @@ class ( Db b, CRecDef b sch r
         mapM (\(v,fs) -> runPrepared @b cmd fs >> setPK @(TTabDef sch t) @b v)
           $ rc (par,vs)
 
-class DmlChild b sch (cs :: [(Symbol,Type)]) r where
-  childInsert :: AppMon f m => f [r] -> SessionMonad b m (f [r])
+class DmlChild b sch (cs :: [(Symbol,Type)]) p r where
+  childInsert :: AppMon f m => f (p,[r]) -> SessionMonad b m (f [r])
 
-instance DmlChild b sch '[] r where
-  childInsert = return
+instance DmlChild b sch '[] p r where
+  childInsert = return . fmap snd
 
-instance (DmlChild b sch cs r, rd ~ TRelDef sch s
+instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
         , RecLens s r, TLens s r ~ [r0]
         , Map FstSym0 (RdCols rd) ~ cc
         , Map SndSym0 (RdCols rd) ~ cp
-        , SubRec cp r, TSubRec cp r ~ rp
+        , SubRec cp (p,r), TSubRec cp (p,r) ~ rp
         , DML b sch (RdFrom rd) (Tagged cc rp) r0
         -- , Show rp, Show r0
         )
-      => DmlChild b sch ( '(s,t) ': cs) r where
+      => DmlChild b sch ( '(s,t) ': cs) p r where
   childInsert rs = do
     ch <- (fmap getZipList . getCompose)
       <$> ( dmlInsert @b @sch @(RdFrom rd)
-          . Compose . fmap (ZipList . map getChild)
+          . Compose . fmap (ZipList . (\(p,rs') -> map (getChild p) rs'))
           ) rs
-    childInsert @b @sch @cs $ (zipWith (\c -> recLens @s .~ c)) <$> ch <*> rs
+    childInsert @b @sch @cs $ (,) <$> (fst <$> rs)
+                <*> ((zipWith (\c -> recLens @s .~ c)) <$> ch <*> (snd <$> rs))
     where
       -- getChild :: r -> (Tagged cc rp, TLens s r)
-      getChild r = (Tagged @cc $ getSub @cp r, r ^. recLens @s)
+      getChild p r = (Tagged @cc $ getSub @cp (p,r), r ^. recLens @s)

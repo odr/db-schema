@@ -23,7 +23,7 @@ import           Language.Haskell.TH
 import           DbSchema.Db
 import           DbSchema.DDL
 import           DbSchema.Def
-import           DbSchema.DML              (DML)
+import           DbSchema.DML
 import           DbSchema.Util.RecLens
 
 -- import           DbSchema.TH.MkSchema
@@ -96,7 +96,9 @@ mkViewM tn rc = do
       recToDb c = concatMap ($ c) $(expLstToDb dbQ rcQ fs)
       recFromDb = $(expFromDb db sch flds)
 
-    instance (CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[])
+    instance ( CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[]
+             , DmlChild $(dbQ) $(schQ) (TRecChilds $(dbQ) $(schQ) $(rcQ)) p $(rcQ)
+             )
           => DML $(dbQ) $(schQ) $(return tn) p $(rcQ)
     |]
   tell rs
