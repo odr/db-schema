@@ -81,7 +81,7 @@ class ( ToStar name
       , CheckTabDef (TTabDef sch name) ~ True
       ) => CTabDef sch (name::Symbol) where
   type TTabDef   sch name               :: TabDef Symbol
-  type TRec      sch name               :: Type
+  type TTabRec   sch name               :: Type
   type TRelFrom  sch name               :: [Symbol]
   type TRelTo    sch name               :: [Symbol]
   -- type TFldTypes sch name               :: [Type]

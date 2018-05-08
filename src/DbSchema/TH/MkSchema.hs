@@ -58,7 +58,7 @@ instTab db sch rels (tabName,rc,tabDef,flds) =
     schQ = conT sch
     tabQ = return tabName
     instTabDef = [d|
-      type instance TRec $(schQ) $(tabQ) = $(conT rc)
+      type instance TTabRec $(schQ) $(tabQ) = $(conT rc)
       type instance TTabDef $(schQ) $(tabQ) = $(return tabDef)
       type instance TFlds $(schQ) $(tabQ) = $(fldsQ)
       |]

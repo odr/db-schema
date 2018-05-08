@@ -22,11 +22,11 @@ import           DbSchema.Def
 import           DbSchema.Util.Format   (Only (..), format)
 import           DbSchema.Util.ToStar
 
-class (Db b, CSchema sch, CTabDef sch s, CRecDef b sch (TRec sch s))
+class (Db b, CSchema sch, CTabDef sch s, CRecDef b sch (TTabRec sch s))
     => DDLTab b sch s where
   ddlCreateTableText :: T.Text
   ddlCreateTableText
-    = createTableText @b (tabName @sch @s) (recDbDef @b @sch @(TRec sch s))
+    = createTableText @b (tabName @sch @s) (recDbDef @b @sch @(TTabRec sch s))
                       <$> tdKey <*> tdUniq $ tabDef @sch @s
 
   createTable :: MonadIO m => SessionMonad b m ()

@@ -16,11 +16,14 @@
 {-# LANGUAGE UndecidableSuperClasses   #-}
 module DbSchema.Util.RecLens where
 
-import           Data.Bifunctor     (first)
-import           Data.Tagged        (Tagged (..), untag)
+import           Data.Bifunctor                (first)
+import           Data.Kind                     (Type)
+import           Data.Singletons.Prelude
+import           Data.Singletons.Prelude.Maybe (IsJust)
+import           Data.Tagged                   (Tagged (..), untag)
 import           Data.Type.Equality
-import           GHC.TypeLits       (Symbol)
-import           Lens.Micro         ((&), (.~), (^.))
+import           GHC.TypeLits                  (Symbol)
+import           Lens.Micro                    ((&), (.~), (^.))
 
 -- Simple lens by (fldName :: Symbol)
 class RecLens (s :: Symbol) b where
@@ -50,13 +53,22 @@ instance RecLens s (Tagged ss v2)
   type TLensB False s (Tagged (s1 ': ss) (v1,v2)) = TLens s (Tagged ss v2)
   recLensB f (Tagged (v1,v2)) = (Tagged @(s1 ': ss) . (v1,) . untag)
                             <$> recLens @s @(Tagged ss v2) f (Tagged @ss v2)
+
+class Rec r where
+  type TRec r :: [(Symbol,Type)]
+
+instance (Rec r, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
+      => RecLens s (v1, v2) where
+  type TLens s (v1,v2) = TLensB (IsJust (Lookup s (TRec v1))) s (v1,v2)
+  recLens = recLensB @b @s @(v1,v2)
 --
--- class Rec r where
---   type TRec r :: [(Symbol,Type)]
+instance RecLens s v1 => RecLensB True s (v1,v2) where
+  type TLensB True s (v1,v2) = TLens s v1
+  recLensB f (v1,v2) = (,v2) <$> (recLens @s @v1) f v1
 --
--- instance RecLens s (v1, v2) where
---   type TLens s (v1,v2) = TLensB (IsJust (Lookup s (TRec v1))) (v1,v2)
---   recLens = recLensB
+instance RecLens s v2 => RecLensB False s (v1,v2) where
+  type TLensB False s (v1,v2) = TLens s v2
+  recLensB f (v1,v2) = (v1,) <$> (recLens @s @v2) f v2
 --
 type family Untag a where
   Untag (Tagged a b) = b

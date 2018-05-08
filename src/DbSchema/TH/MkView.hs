@@ -81,6 +81,9 @@ mkViewM tn rc = do
   lift (concat <$> mapM (decLens rcQ) flds) >>= tell
   -- lift $ reportWarning $ "instances for " ++ pprint tn ++ ", " ++ pprint rc
   rs <- lift $ [d|
+    instance Rec $(rcQ) where
+      type TRec $(rcQ) = $(return (toPromotedList $ map toPromotedPair fs))
+
     instance CRecDef $(dbQ) $(schQ) $(rcQ) where
       -- type TRecTab $(dbQ) $(schQ) $(rcQ) = $(tabq)
       type TRecFlds $(dbQ) $(schQ) $(rcQ)
