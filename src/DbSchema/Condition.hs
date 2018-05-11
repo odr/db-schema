@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE DeriveGeneric             #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE GADTs                     #-}
 {-# LANGUAGE KindSignatures            #-}
@@ -11,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TypeApplications          #-}
+{-# LANGUAGE UndecidableInstances      #-}
 module DbSchema.Condition where
 
 import           Control.Monad.Trans.Class
@@ -51,49 +53,53 @@ showCmp = \case
   (:<)  -> "<"
   (:>)  -> ">"
 
-data Cond sch (t::Symbol)
+data Cond db sch (t::Symbol)
   = Empty
-  | forall (n::Symbol). TabFld sch t n => Cmp  (Proxy n) Cmp (TabFldType sch t n)
-  | forall (n::Symbol). TabFld sch t n => Null (Proxy n)
-  | Not (Cond sch t)
-  | BoolOp BoolOp (Cond sch t) (Cond sch t)
+  | forall (n::Symbol). (TabFld sch t n, CFldDef db n (TabFldType sch t n))
+    => Cmp  (Proxy n) Cmp (TabFldType sch t n)
+  | forall (n::Symbol). (TabFld sch t n, CFldDef db n (TabFldType sch t n))
+    => Null (Proxy n)
+  | Not (Cond db sch t)
+  | BoolOp BoolOp (Cond db sch t) (Cond db sch t)
   -- condition "EXIST"
   | forall (ref::Symbol) rel . (rel ~ TRelDef sch ref, t ~ RdTo rel)
-    => Child (Proxy ref) (Cond sch (RdFrom rel))
+    => Child (Proxy ref) (Cond db sch (RdFrom rel))
 --
-deriving instance Show (Cond sch t)
+deriving instance Show (Cond db sch t)
 
 --
-instance (TabFld sch t n, v ~ TabFldType sch t n)
-      => IsLabel n (Cmp -> v -> Cond sch t) where
-  fromLabel = Cmp (Proxy @n)
+class CCond (n::Symbol) db sch (t::Symbol) where
+  pcmp    :: (TabFld sch t n, CFldDef db n (TabFldType sch t n))
+          => Cmp -> (TabFldType sch t n) -> Cond db sch t
+  pnull   :: (TabFld sch t n, CFldDef db n (TabFldType sch t n)) => Cond db sch t
+  pchild  :: forall rel . (rel ~ TRelDef sch n, t ~ RdTo rel)
+          => Cond db sch (RdFrom rel) -> Cond db sch t
 
-instance (rel ~ TRelDef sch n, p ~ RdTo rel, c ~ RdFrom rel)
-      => IsLabel n (Cond sch c -> Cond sch p) where
-  fromLabel = Child (Proxy @n)
-
-
-class CCond (n::Symbol) sch (t::Symbol) where
-  pcmp   :: TabFld sch t n => Cmp -> (TabFldType sch t n) -> Cond sch t
-  pnull  :: TabFld sch t n => Cond sch t
-  pchild :: forall rel . (rel ~ TRelDef sch n, t ~ RdTo rel)
-         => Cond sch (RdFrom rel) -> Cond sch t
-
-instance CCond n sch t where
+instance CCond n db sch t where
   pcmp = Cmp (Proxy @n)
   pnull = Null (Proxy @n)
   pchild = Child (Proxy @n)
 
-pnot :: Cond b a -> Cond b a
+--
+instance (TabFld sch t n, v ~ TabFldType sch t n, CFldDef db n v)
+      => IsLabel n (Cmp -> v -> Cond db sch t) where
+  fromLabel = Cmp (Proxy @n)
+
+instance (rel ~ TRelDef sch n, p ~ RdTo rel, c ~ RdFrom rel)
+      => IsLabel n (Cond db sch c -> Cond db sch p) where
+  fromLabel = Child (Proxy @n)
+
+pnot :: Cond db b a -> Cond db b a
 pnot = Not
 
-(&&&), (|||) :: Cond b a -> Cond b a -> Cond b a
+(&&&), (|||) :: Cond db b a -> Cond db b a -> Cond db b a
 (&&&) = BoolOp And
 (|||) = BoolOp Or
 infixl 2 |||
 infixl 3 &&&
 
-(<?),(>?),(<=?),(>=?),(==?),(~?) :: (Cmp -> v -> Cond sch t) -> v -> Cond sch t
+(<?),(>?),(<=?),(>=?),(==?),(~?)
+  :: (Cmp -> v -> Cond db sch t) -> v -> Cond db sch t
 x <? b  = x (CmpS (:<))  b
 x >? b  = x (CmpS (:>))  b
 x <=? b = x (CmpS (:<=)) b
@@ -102,10 +108,10 @@ x ==? b = x (CmpS (:==)) b
 x ~? b  = x Like  b
 infix 4 <?, >?, <=?, >=?, ==?, ~?
 --
--- pcmp @"id" @Sch @"Customer"  ==? 1
+-- pcmp @"id" @Dbs @Sch @"Customer"  ==? 1
 -- ||| pchild @"ordCust" (
---    pcmp @"id" ==? 1
---    ||| pnot (pchild @"opOrd" (pcmp @"price" >? 5))
+--    #id ==? 1
+--    ||| pnot (pchild @"opOrd" (#price >? 5))
 -- )
 
 -- номер таблицы родителя (номер дочерней таблицы, номер параметра)
@@ -119,19 +125,18 @@ withPar (_::Proxy b) f = lift $ do
   modify $ second (+1)
   return $ f (paramName @b n)
 
--- convCond :: Proxy b -> Cond sch t -> ConvCondMonad (Text, [FieldDB b])
--- convCond (pb::Proxy b) (condition :: Cond sch t) = case condition of
---   Empty -> return ("1=1",[])
---   -- | forall (n::Symbol). TabFld sch t n => Cmp  (Proxy n) Cmp (TabFldType sch t n)
---   (Cmp (_::Proxy n) cmp v -> do
---     ntab <- lift $ fst <$> get
---     withPar pb $ \par
---       -> let nm = format "t{}.{}" (ntab, symbolVal (Proxy @s)) in
---            (case cmp of
---              Like     -> condLike @b nm par
---              CmpS op  -> formatS "{}{}{}" (nm,showCmp op,par)
---            , fldToDb @b v)
---   -- | forall (n::Symbol). TabFld sch t n => Null (Proxy n)
+convCond :: Cond db sch t -> CondMonad (Text, [FieldDB b])
+convCond (condition :: Cond db sch t) = case condition of
+  Empty -> return ("1=1",[])
+  -- (Cmp (_::Proxy n) cmp v -> do
+  --   ntab <- lift $ fst <$> get
+  --   withPar pb $ \par
+  --     -> let nm = format "t{}.{}" (ntab, symbolVal (Proxy @s)) in
+  --          (case cmp of
+  --            Like     -> condLike @b nm par
+  --            CmpS op  -> formatS "{}{}{}" (nm,showCmp op,par)
+  --          , fldToDb @b @n v)
+  -- | forall (n::Symbol). TabFld sch t n => Null (Proxy n)
 --   Null p -> return (pack (symbolVal p) `mappend` " IS NULL", [])
 --   -- | Not (Cond sch t)
 --   Not c -> first (formatS "NOT ({})" . Only) <$> convCond c
