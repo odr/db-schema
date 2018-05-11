@@ -5,13 +5,15 @@
 {-# LANGUAGE TypeApplications  #-}
 module Main where
 
-import           Data.Proxy   (Proxy (..))
-import           Data.Tagged  (Tagged (..))
+import           Data.Proxy         (Proxy (..))
+import           Data.Tagged        (Tagged (..))
+import           DbSchema.Condition
 import           DbSchema.DML
-import           GHC.TypeLits (Symbol)
+import           GHC.TypeLits       (Symbol)
 
 import           CustomerView
 import           Model
+
 
 main :: IO ()
 main = runSession @Dbs "test.db" $ do

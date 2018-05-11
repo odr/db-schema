@@ -15,7 +15,7 @@ import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q (..), TyLit (..),
 
 import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
 import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
-                                      RelDef (..), TabDef (..))
+                                      RelDef (..), TabDef (..), TabFld (..))
 import           DbSchema.TH.MkView  (mkView, nameToSym, recToFlds, strToSym,
                                       toPromotedList, toPromotedPair)
 
@@ -42,7 +42,8 @@ mkInsts db sch (tabs, rels) = concat <$> sequence
           type TRels   $(schQ) = $(return relNames)
         instance DDLSchema $(conT db) $(schQ)
     |]
-  , concat <$> mapM (\(LitT (StrTyLit tn),rc,_,_) -> mkView db sch tn mempty rc) tabs
+  , concat <$> mapM (\(LitT (StrTyLit tn),rc,_,_) -> 
+                        mkView db sch tn mempty rc) tabs
   ]
   where
     schQ = conT sch
@@ -53,7 +54,10 @@ instTab :: Name -> Name -> [((Type,Type),(Type, Type))]
         -> (Type, Name, Type, [(Type,Type)])
         -> Q [Dec]
 instTab db sch rels (tabName,rc,tabDef,flds) =
-  concat <$> sequence [inst >>= mapM (\i -> setInsts i <$> insts), instDDLT]
+  concat <$> sequence ( [ inst >>= mapM (\i -> setInsts i <$> insts), instDDLT]
+                      ++ map tabFld flds
+                      )
+
   where
     schQ = conT sch
     tabQ = return tabName
@@ -81,6 +85,10 @@ instTab db sch rels (tabName,rc,tabDef,flds) =
           , concat <$> mapM instRel [True,False]
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
+    tabFld (fn,ft) = [d|
+      instance TabFld $(schQ) $(tabQ) $(return fn) where
+        type TabFldType $(schQ) $(tabQ) $(return fn) = $(return ft)
+      |]
 
 tabPreToTabRel
   :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])

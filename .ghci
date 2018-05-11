@@ -1,6 +1,6 @@
 :set -XTypeApplications -XDataKinds -XScopedTypeVariables -XTemplateHaskell
-     -XOverloadedStrings -XFlexibleInstances -XMultiParamTypeClasses
-     -XFlexibleContexts -XTypeFamilies
+:set -XOverloadedStrings -XFlexibleInstances -XMultiParamTypeClasses
+:set -XFlexibleContexts -XTypeFamilies
 import qualified Data.Text as T
 import GHC.TypeLits as TL
 import Language.Haskell.TH as TH

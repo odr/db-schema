@@ -35,6 +35,7 @@ dependencies:
 - microlens
 - containers
 - tagged
+- aeson
 
 library:
   source-dirs: src
