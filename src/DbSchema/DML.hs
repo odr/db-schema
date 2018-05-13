@@ -171,25 +171,42 @@ instance DmlChild b sch '[] p r where
   childDelete _ = return ()
   childSelect = return . fmap snd
 
+-- class ToMaybe sch t ns v where
+--   type TToMaybe sch t ns v
+--   toMaybe :: v -> TToMaybe sch t ns v
+-- instance ToMaybe sch t '[] () where
+--   type TToMaybe sch t ns v = ()
+--   toMaybe = id
+-- instance ToMaybe sch t '[n] v where
+--   type TToMaybe sch t ns v = ()
+--   toMaybe = id
+
 type RefCols sch s = RdCols (TRelDef sch s)
+type ChildCols sch s = Map FstSym0 (RefCols sch s)
+type ChildTab sch s = RdFrom (TRelDef sch s)
 instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
         , RecLens s r, TLens s r ~ [r0]
         , Map FstSym0 (RdCols rd) ~ cc
         , Map SndSym0 (RdCols rd) ~ cp
         , SubRec cp (p,r), TSubRec cp (p,r) ~ rp
-        , DML b sch (RdFrom rd) (Tagged cc rp) r0
-        -- , Show rp, Show r0
+        , RdFrom rd ~ ct
         , ('(s,t) ': cs) ~ css
+        , CTabDef sch ct, TTabRec sch ct ~ rc
+        , SubRec cc rc
+        , MbMaybe cc rp (TSubRec cc rc)
+        , DML b sch ct (Tagged cc (TSubRec cc rc)) r0
         )
       => DmlChild b sch ( '(s,t) ': cs) p r where
   type FstChild b sch ( '(s,t) ': cs) p r =
-    ( Tagged  (Map FstSym0 (RefCols sch s))
-              (TSubRec (Map SndSym0 (RefCols sch s)) (p,r))
+    ( Tagged  (ChildCols sch s)
+              (TSubRec (ChildCols sch s) (TTabRec sch (ChildTab sch s)))
     , TLens s r)
-  fstChild p r = (Tagged @cc $ getSub @cp (p,r), r ^. recLens @s)
+  fstChild p r = ( Tagged @cc $ mbMaybe @cc $ getSub @cp (p,r)
+                 , r ^. recLens @s
+                 )
   childInsert rs = do
     ch <- (fmap getZipList . getCompose)
-      <$> ( dmlInsert @b @sch @(RdFrom rd)
+      <$> ( dmlInsert @b @sch @ct
           . Compose
           . fmap (ZipList . (\(p,rs') -> map (fstChild @b @sch @css p) rs'))
           ) rs
@@ -200,7 +217,7 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
     --   getChild p r = (Tagged @cc $ getSub @cp (p,r), r ^. recLens @s)
 
   childDelete rs = do
-    dmlDelete @b @sch @(RdFrom rd)
+    dmlDelete @b @sch @ct
       $ Compose
       $ fmap (ZipList . (\(p,rs') -> map (fstChild @b @sch @css p) rs')) rs
     childDelete @b @sch @cs rs
@@ -209,7 +226,7 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
     | all (null . snd) rs = return $ snd <$> rs
     | otherwise           = do
       ch <- (fmap getZipList . getCompose)
-        <$> ( dmlSelect @b @sch @(RdFrom rd)
+        <$> ( dmlSelect @b @sch @ct
             . Compose
             . fmap ( ZipList
                    . (\(p,rs') -> map (fst . fstChild @b @sch @css p) rs')
