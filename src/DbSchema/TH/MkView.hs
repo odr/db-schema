@@ -96,9 +96,7 @@ mkViewM tn rc = do
       recToDb c = concatMap ($ c) $(expLstToDb dbQ rcQ fs)
       recFromDb = $(expFromDb db sch flds)
 
-    instance ( CRecDef $(dbQ) $(schQ) p, TRecChilds $(dbQ) $(schQ) p ~ '[]
-             , DmlChild $(dbQ) $(schQ) (TRecChilds $(dbQ) $(schQ) $(rcQ)) p $(rcQ)
-             )
+    instance ParConstr $(dbQ) $(schQ) p $(rcQ)
           => DML $(dbQ) $(schQ) $(return tn) p $(rcQ)
     |]
   tell rs
@@ -109,8 +107,9 @@ mkViewM tn rc = do
     getListType (AppT ListT (ConT t)) = t
 
     decLens rcQ (s,t) =
-      --  TH не работает с DuplicateRecordFields. Через generics - работает.
-      --  Пока так...
+      -- TH не работает с DuplicateRecordFields. Через generics - работает.
+      -- Ambiguous record updates not (yet) handled by Template Haskell
+      -- Пока так...
       [d| instance RecLens $(return s) $(rcQ) where
             type TLens $(return s) $(rcQ) = $(return t)
             recLens = field @($(return s))

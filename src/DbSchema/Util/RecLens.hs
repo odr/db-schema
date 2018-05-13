@@ -3,10 +3,8 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TemplateHaskell           #-}
 {-# LANGUAGE TupleSections             #-}
 {-# LANGUAGE TypeApplications          #-}
 {-# LANGUAGE TypeFamilies              #-}
@@ -23,9 +21,14 @@ import           Data.Singletons.Prelude.Maybe (IsJust)
 import           Data.Tagged                   (Tagged (..), untag)
 import           Data.Type.Equality
 import           GHC.TypeLits                  (Symbol)
-import           Lens.Micro                    ((&), (.~), (^.))
+import           Lens.Micro                    (lens, (&), (.~), (^.))
 
 -- Simple lens by (fldName :: Symbol)
+--  (a -> f a) -> b -> f b
+-- (a -> f a) -> Maybe a -> f (Maybe a)
+-- g afa = \case
+    -- Nothing -> const Nothing <$> afa undefined
+    -- Just a -> Just <$> afa a
 class RecLens (s :: Symbol) b where
   type TLens s b
   recLens :: Functor f => (TLens s b -> f (TLens s b)) -> b -> f b
@@ -68,8 +71,6 @@ instance Rec (Tagged (n2 ': ns) v2)
   type TRec (Tagged (n1 ': n2 ': ns) (v1,v2)) =
     '(n1,v1) ': TRec (Tagged (n2 ': ns) v2)
 
-
-
 instance (Rec v1, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
       => RecLens s (v1, v2) where
   type TLens s (v1,v2) = TLensB (IsJust (Lookup s (TRec v1))) s (v1,v2)
@@ -89,16 +90,37 @@ type family Untag a where
 class SubRec (ns :: [Symbol]) r where
   type TSubRec ns r
   getSub :: r -> TSubRec ns r
-
+  setSub :: TSubRec ns r -> r -> r
+  subLens :: Functor f => (TSubRec ns r -> f (TSubRec ns r)) -> r -> f r
+  subLens = lens (getSub @ns) (flip (setSub @ns))
+          -- or use alongside?
 instance SubRec '[] r where
   type TSubRec '[] r = ()
   getSub _ = ()
+  setSub _ = id
 
 instance (RecLens n1 r, SubRec (n2 ': ns) r)
       => SubRec (n1 ': n2 ': ns) r where
   type TSubRec (n1 ': n2 ': ns) r = (TLens n1 r, TSubRec (n2 ': ns) r)
-  getSub r = (r ^. (recLens @n1), getSub @(n2 ': ns) r)
+  getSub = (,) <$> (^. recLens @n1) <*> getSub @(n2 ': ns)
+  setSub (a,b) = setSub @(n2 ': ns) b . (recLens @n1 .~ a)
+  -- subLens = alongside (recLens @n1) (subLens @(n2 ': ns))
 
 instance RecLens n1 r => SubRec '[n1] r where
   type TSubRec '[n1] r = TLens n1 r
-  getSub r = (r ^. (recLens @n1))
+  getSub = (^. recLens @n1)
+  setSub = (recLens @n1 .~)
+
+--
+class MbMaybeB b x y where mbMaybeB :: x -> y
+instance MbMaybeB True x x where mbMaybeB = id
+instance MbMaybeB False x (Maybe x) where mbMaybeB = Just
+
+class MbMaybe (ns :: [Symbol]) x y where mbMaybe :: x -> y
+instance MbMaybe '[] () () where mbMaybe = id
+instance MbMaybeB (a==b) a b => MbMaybe '[n] a b where
+  mbMaybe = mbMaybeB @(a==b)
+instance (MbMaybeB (a1==b1) a1 b1, MbMaybe (n2 ':ns) as bs)
+      => MbMaybe (n1 ':n2 ':ns) (a1,as) (b1,bs) where
+  mbMaybe (a1,as) = (mbMaybeB @(a1==b1) a1, mbMaybe @(n2 ':ns) as)
+

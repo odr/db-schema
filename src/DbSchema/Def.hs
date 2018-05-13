@@ -271,6 +271,14 @@ instance CRecDef db sch (Tagged ('[]::[Symbol]) ()) where
   recToDb _ = []
   recFromDb = return $ Tagged ()
 
+--
+instance CRecDef db sch () where
+  type TRecFlds db sch () = '[]
+  type TRecChilds db sch () = '[]
+  recDbDef = []
+  recToDb () = []
+  recFromDb = return $ ()
+
 instance CFldDef db n a
       => CRecDef db sch (Tagged ('[n]::[Symbol]) a) where
   type TRecFlds db sch (Tagged '[n] a) = '[ '(n,a)]
