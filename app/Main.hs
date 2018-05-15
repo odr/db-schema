@@ -52,7 +52,7 @@ test d = do
 --
 test2 :: UTCTime -> [CustomerT] -> SessionMonad Dbs IO ([CustomerT], [CustomerT])
 test2 d cs = do
-  rs <- dmlUpdate @Dbs @Sch @"Customer" $ ZipList [(parEmpty, cs, customers2 d)]
+  rs <- dmlUpdate @Dbs @Sch @"Customer" False $ ZipList [(parEmpty, cs, customers2 d)]
   (rs' :: ZipList [CustomerT]) <- dmlSelect @Dbs @Sch @"Customer"
       $ ZipList $ map (Tagged @'["id"]) [1..3::Int64]
   return (concat $ getZipList rs, concat $ getZipList rs')

@@ -22,6 +22,7 @@ import           Data.Functor.Compose         (Compose (..))
 import           Data.Kind                    (Constraint, Type)
 import           Data.List                    (deleteFirstsBy, union, (\\))
 import qualified Data.Map                     as M
+import           Data.Maybe                   (fromMaybe)
 import           Data.Proxy                   (Proxy)
 import           Data.Singletons.Prelude
 import           Data.Singletons.Prelude.List
@@ -102,7 +103,7 @@ class ( Db b, CRecDef b sch r
   dmlSelect :: AppMon f m => f p -> SessionMonad b m (f [r])
   dmlSelect = dmlSelectDef (Proxy @'(b,sch,t,r))
 
-  dmlUpdate :: AppMon f m => f (p,[r],[r]) -> SessionMonad b m (f [r])
+  dmlUpdate :: AppMon f m => Bool -> f (p,[r],[r]) -> SessionMonad b m (f [r])
   dmlUpdate = dmlUpdateDef (Proxy @'(b,sch,t))
 
 class DmlChild b sch (cs :: [(Symbol,Type)]) p r where
@@ -111,7 +112,7 @@ class DmlChild b sch (cs :: [(Symbol,Type)]) p r where
   childInsert :: AppMon f m => f (p,[r]) -> SessionMonad b m (f [r])
   childDelete :: AppMon f m => f (p,[r]) -> SessionMonad b m ()
   childSelect :: AppMon f m => f (p,[r]) -> SessionMonad b m (f [r])
-  childUpdate :: AppMon f m => f (p,[(r,r)]) -> SessionMonad b m (f [r])
+  childUpdate :: AppMon f m => Bool -> f (p,[(r,r)]) -> SessionMonad b m (f [r])
 
 instance DmlChild b sch '[] p r where
   type FstChild b sch '[] p r = ()
@@ -119,7 +120,7 @@ instance DmlChild b sch '[] p r where
   childInsert = return . fmap snd
   childDelete _ = return ()
   childSelect = return . fmap snd
-  childUpdate = return . fmap (map fst . snd)
+  childUpdate _ = return . fmap (map fst . snd)
 
 type RefCols sch s = RdCols (TRelDef sch s)
 type ChildCols sch s = Map FstSym0 (RefCols sch s)
@@ -173,9 +174,9 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
         $ (,) <$> (fst <$> rs)
               <*> ((zipWith (\c -> recLens @s .~ c)) <$> ch <*> (snd <$> rs))
 
-  childUpdate us = do
+  childUpdate isDiff us = do
     us' <- (fmap getZipList . getCompose)
-        <$> ( dmlUpdate @b @sch @ct
+        <$> ( dmlUpdate @b @sch @ct isDiff
             . Compose
             . fmap (ZipList . (\(p,rs) ->
                     map ( (\((k,os),(_,ns)) -> (k,os,ns))
@@ -183,7 +184,7 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
                                 (fstChild @b @sch @css p)
                         ) rs))
             ) us
-    childUpdate @b @sch @cs $ setUpd <$> us <*> us'
+    childUpdate @b @sch @cs isDiff $ setUpd <$> us <*> us'
       where
         setUpd (p, par) ch =
           (p, zipWith (\c (o,n) -> (o, n & recLens @s .~ c)) ch par)
@@ -266,42 +267,54 @@ dmlSelectDef (_::Proxy '(b,sch,t,r)) (ps ::f p)
                         [0..] (dmlParNames @b @sch @t @p @r)
 --
 dmlUpdateDef :: (DML b sch t p r, AppMon f m)
-            => Proxy '(b,sch,t) -> f (p,[r],[r]) -> SessionMonad b m (f [r])
-dmlUpdateDef (_ :: Proxy '(b,sch,t)) (vals :: f (p,[r],[r])) = do
+            => Proxy '(b,sch,t) -> Bool -> f (p,[r],[r]) -> SessionMonad b m (f [r])
+dmlUpdateDef (_ :: Proxy '(b,sch,t)) isDiff (vals :: f (p,[r],[r])) = do
   -- liftIO $ mapM print vals'
   dmlDelete @b @sch @t ds
-  updateDiff
-  us' <- childUpdate @b @sch @(TRecChilds b sch r) us
+  if isDiff then updateDiff else updateFull
+  us' <- childUpdate @b @sch @(TRecChilds b sch r) isDiff us
   ins' <- dmlInsert @b @sch @t ins
   return $ setInsUpd <$> vals' <*> ins' <*> us'
   where
+    recNames = dmlRecNames @b @sch @t @p @r
+    keyNames = dmlKeyNames @b @sch @t @p @r
+    sql mbDifs = let names = fromMaybe recNames mbDifs in
+      format "UPDATE {} SET {} WHERE {}"
+        ( tabName @sch @t
+        , T.intercalate ","
+            $ zipWith (\n s -> format "{} = {}" (s, paramName @b n))
+                      [0..] names
+        , T.intercalate " AND "
+            $ zipWith (\n s -> format "{} = {}" (s, paramName @b n))
+                      [(length names)..] keyNames
+        )
+    --
     updateDiff = traverse (\(p,us') ->
                       mapM_ (\x@(_,n) -> run p n $ diff x) us') us
       where
-        recNames = dmlRecNames @b @sch @t @p @r
         run p r difs
           | null difs = return ()
           | otherwise = do
-            cmd <- prepareCommand @b $ sql difs
+            cmd <- prepareCommand @b $ sql $ Just $ map fst difs
             finally (runPrepared @b cmd $ map snd difs
                                         ++ dmlKeyVals @b @sch @t p r)
                     (finalizePrepared @b cmd)
-        sql difs = format "UPDATE {} SET {} WHERE {}"
-          ( tabName @sch @t
-          , T.intercalate ","
-              $ zipWith (\n (s,_) -> format "{} = {}" (s, paramName @b n))
-                        [0..] difs
-          , T.intercalate " AND "
-              $ zipWith (\n s -> format "{} = {}" (s, paramName @b n))
-                        [(length difs)..] (dmlKeyNames @b @sch @t @p @r)
-          )
         diff = map (second snd)
               . filter (uncurry (/=) . snd)
               . zip recNames
               . uncurry zip
               . bimap (recToDb @b @sch) (recToDb @b @sch)
     --
-    key = getSub @(TdKey (TTabDef sch t))
+    updateFull = do
+      cmd <- prepareCommand @b $ sql Nothing
+      finally (traverse (\(p,us') -> mapM_ (\(_,n) -> run cmd p n) us') us)
+              (finalizePrepared @b cmd)
+      where
+        run cmd p n = runPrepared @b cmd
+                        (recToDb @b @sch n ++ dmlKeyVals @b @sch @t p n)
+
+    --
+    key = getSub @(KeyNames sch t)
     mkMap p = M.fromList . map (\x -> (key (p,x), x))
     vals' = fmap (\(p,olds,news) -> (p, mkMap p olds, mkMap p news)) vals
     ds = fmap (\(p,olds,news) -> (p, M.elems $ M.difference olds news)) vals'
