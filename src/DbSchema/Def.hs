@@ -25,16 +25,15 @@ import qualified Data.Map                         as M
 import           Data.Singletons.Prelude
 import           Data.Singletons.Prelude.List
 import           Data.Singletons.TH               (promote)
-import           Data.Tagged                      (Tagged (..), untag)
+import           Data.Tagged                      (Tagged (..))
 import qualified Data.Text                        as T
-import           Lens.Micro                       ((&), (.~), (^.))
-import           Type.Reflection                  (Typeable, typeRep)
+import           Lens.Micro                       ((&), (.~))
+-- import           Type.Reflection                  (Typeable, typeRep)
 
 import           DbSchema.Db                      (Db (..), DelCons, MonadIO,
                                                    SessionMonad)
 import           DbSchema.Util.RecLens
 import           DbSchema.Util.ToStar             (TStar, ToStar (..))
-
 
 promote [d|
   data TabDef s = TabDefC { tdFlds    :: [s]
@@ -78,7 +77,7 @@ class ( ToStar name
       , ToStar (TTabDef  sch name)
       -- дополнительные проверки
       -- все наборы в TTabDef без повторений, ключи корректные
-      , CheckTabDef (TTabDef sch name) ~ True
+      , CheckTabDef (TTabDef sch name) ~ 'True
       ) => CTabDef sch (name::Symbol) where
   type TTabDef   sch name               :: TabDef Symbol
   type TTabRec   sch name               :: Type
@@ -105,10 +104,10 @@ class (ToStar name
       , CTabDef sch (RdTo   (TRelDef sch name))
       -- + проверить, что ссылка на PK или UK
       , IsRefToKey (TRelDef sch name)
-                   (TTabDef sch (RdTo   (TRelDef sch name))) ~ True
+                   (TTabDef sch (RdTo   (TRelDef sch name))) ~ 'True
       -- + проверить, что ссылка на PK или UK
       , IsRefFromEx (TRelDef sch name)
-                   (TTabDef sch (RdFrom (TRelDef sch name))) ~ True
+                   (TTabDef sch (RdFrom (TRelDef sch name))) ~ 'True
       -- + проверить совпадение типов (с точностью до Maybe) from и to
       , RefTypesConstr
           ( Lookups (TFlds sch   (RdFrom (TRelDef sch name)))
@@ -171,20 +170,16 @@ data TabPreDef s t = TPD  { tpdRec     :: t
                           } deriving Show
 
 ------------
-type instance TStar DelCons = DelCons
 type instance TStar (TabDef Symbol) = TabDef T.Text
 type instance TStar (RelDef Symbol) = RelDef T.Text
 
-instance Typeable s => ToStar (s::DelCons) where
-  toStar = read $ tail $ show $ typeRep @s
-
 instance (ToStar fs, ToStar pk, ToStar uk, ToStar ai)
-      => ToStar (TabDefC fs pk uk ai :: TabDef Symbol) where
+      => ToStar ('TabDefC fs pk uk ai :: TabDef Symbol) where
   toStar = TabDefC (toStar @_ @fs) (toStar @_ @pk)
                    (toStar @_ @uk) (toStar @_ @ai)
 
 instance (ToStar f, ToStar t, ToStar cs, ToStar cons)
-      => ToStar (RelDefC f t cs cons :: RelDef Symbol) where
+      => ToStar ('RelDefC f t cs cons :: RelDef Symbol) where
   toStar = RelDefC (toStar @_ @f) (toStar @_ @t)
                    (toStar @_ @cs) (toStar @_ @cons)
 
@@ -214,7 +209,7 @@ defFromDb (_:: Proxy name) f = lift get >>= \case
 defMbToDb :: CFldDef db name val
           => Proxy db -> Proxy name -> FieldDB db -> Maybe val
           -> [FieldDB db]
-defMbToDb (_::Proxy db) (p::Proxy name) df v
+defMbToDb (_::Proxy db) (_::Proxy name) df v
   = maybe (defToDb @_ @db (const df) v) (fldToDb @db @name) v
 
 defMbFromDb :: CFldDef db name val
@@ -288,11 +283,11 @@ instance (CRecDef db sch (Tagged '[x1] a), CRecDef db sch (Tagged (x2 ': xs) b))
 class SetPK (td :: TabDef Symbol) db r where
   setPK :: MonadIO m => r -> SessionMonad db m r
 
-instance SetPK (TabDefC f k u False) db r where
+instance SetPK ('TabDefC f k u 'False) db r where
   setPK = return
 
 instance (Db db, RecLens k r, GenKey db ~ TLens k r)
-      => SetPK (TabDefC f '[k] u True) db r where
+      => SetPK ('TabDefC f '[k] u 'True) db r where
   setPK r = do
     k <- getLastKey @db
     return $ r & recLens @k .~ k

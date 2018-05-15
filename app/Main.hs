@@ -5,18 +5,14 @@
 {-# LANGUAGE TypeApplications    #-}
 module Main where
 
-import           Control.Applicative   (ZipList (..))
-import           Data.Proxy            (Proxy (..))
-import           Data.Tagged           (Tagged (..))
-import           DbSchema.Condition
+import           Control.Applicative (ZipList (..))
+import           Data.Tagged         (Tagged (..))
 import           DbSchema.DML
-import           GHC.TypeLits          (Symbol)
-
-import           DbSchema.Util.RecLens
 
 import           CustomerView
 import           Model
 
+customers :: UTCTime -> [CustomerT]
 customers d =
   [ CustomerT 0 "Lena" [ AddressT 0 "SPb" True ] "Test"
     [ OrderT 0 "3" 0 Nothing (utctDay d) [] [] ] []
@@ -29,6 +25,7 @@ customers d =
     ] []
   ]
 
+customers2 :: UTCTime -> [CustomerT]
 customers2 d =
   [ CustomerT 2 "Dima" [ AddressT 2 "SPb" True
                       , AddressT 3 "Msk" False
@@ -75,5 +72,4 @@ main = do
   print rs3
   putStrLn "------------"
   print $ rs2 == rs3
-
 

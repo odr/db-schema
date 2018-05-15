@@ -14,16 +14,12 @@ module DbSchema.TH.MkView where
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.RWS
 import           Data.Bifunctor            (second)
-import           Data.List                 (nub, partition, (\\))
+import           Data.List                 (partition)
 import qualified Data.Map                  as M
 import qualified Data.Set                  as S
-import           Data.Tagged               (Tagged)
 import qualified Data.Text                 as T
-import           GHC.TypeLits              (Symbol)
 import           Language.Haskell.TH
 
-import           DbSchema.Db
-import           DbSchema.DDL
 import           DbSchema.Def
 import           DbSchema.DML
 import           DbSchema.Util.RecLens
@@ -40,11 +36,11 @@ data ViewEnv = VE { veDb   :: Name
 type MkViewMonad = RWST ViewEnv [Dec] (S.Set (Type, Name)) Q
 
 mkView :: Name -> Name -> String -> M.Map T.Text (RelDef T.Text) -> Name -> DecsQ
-mkView db sch sTabName rels rc = do
+mkView db sch sTabName rls rc = do
   (ClassI _ ri) <- reify ''CRecDef
   crd <- [t|CRecDef|]
   snd <$> execRWST (mkViewM tn rc)
-                   (VE db sch rels
+                   (VE db sch rls
                      $ S.fromList $ map getInst $ filter (isInst crd) ri)
                    mempty
   where
@@ -52,8 +48,9 @@ mkView db sch sTabName rels rc = do
     isInst crd (InstanceD _ _
                   (AppT (AppT (AppT (AppT (AppT c t1) t2) _) (ConT _)) _) _)
       = c == crd && t1 == ConT db && t2 == ConT sch
-    isInst crd _ = False
+    isInst _ _ = False
     getInst (InstanceD _ _ (AppT (AppT (AppT _ t3) (ConT t4)) _) _) = (t3,t4)
+    getInst _ = error "Error in mkView.getInst"
 
 mkViewM :: Type -> Name -> MkViewMonad ()
 mkViewM tn rc = do
@@ -106,6 +103,7 @@ mkViewM tn rc = do
       (AppT ListT (ConT _))  -> False
       _                      -> True
     getListType (AppT ListT (ConT t)) = t
+    getListType _                     = error "Error in mkViewM.getListType"
 
     decLens rcQ (s,t) =
       -- TH не работает с DuplicateRecordFields. Через generics - работает.
@@ -129,15 +127,13 @@ mkViewM tn rc = do
              rl = appTypeE (appTypeE [e| recLens |] (return s)) rcQ
     expFromDb db sch flds =
       case map (\(s,t) -> if isFld t
-                  then [e| fldFromDb @($(dbQ)) @($(return s)) @($(return t)) |]
+                  then [e| fldFromDb @($(conT db)) @($(return s)) @($(return t)) |]
                   else [e| pure [] |]
                ) flds of
         (x:xs) -> foldl (\b a -> [e| (<*>) $(b) $(a) |])
                         [e| $(conByType rc) <$> $(x)|] xs
         _ -> fail $ "Error for fldFromDb for " ++ pprint db ++ ", "
                   ++ pprint sch ++ ", " ++ pprint rc
-      where
-        [dbQ, schQ, rcQ] = map conT [db,sch,rc]
 --
 recToFlds :: Name -> Q [(Type,Type)]
 recToFlds n = (\case

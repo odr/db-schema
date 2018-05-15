@@ -11,17 +11,15 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE UndecidableInstances      #-}
--- {-# OPTIONS_GHC -Wno-orphans #-}
 module DbSchema.Db.Sqlite
     ( Sqlite, SQLData
     )
     where
 
 import           Control.Monad.Catch        (SomeException, catch, throwM)
--- import           Control.Monad.IO.Class     (MonadIO (..))
 import           Control.Monad.Trans.Reader (ReaderT (..), ask)
 import           Data.Bifunctor             (second)
-import           Data.ByteString            (ByteString (..))
+import           Data.ByteString            (ByteString)
 import           Data.Monoid                ((<>))
 import           Data.Proxy                 (Proxy (..))
 import qualified Data.Text                  as T
@@ -32,23 +30,12 @@ import           Database.SQLite3           (Database, SQLData (..), Statement,
                                              columns, exec, finalize,
                                              lastInsertRowId, open, prepare,
                                              reset, step)
-import           GHC.TypeLits               (KnownSymbol)
 
 import           DbSchema.Db
 import           DbSchema.Def
 import           DbSchema.Util.ToStar
 
 data Sqlite
-
--- type instance DbTypeName Sqlite Int64      = "INTEGER"
--- type instance DbTypeName Sqlite Int        = "INTEGER"
--- type instance DbTypeName Sqlite Bool       = "INTEGER"
--- type instance DbTypeName Sqlite Text       = "TEXT"
--- type instance DbTypeName Sqlite Double     = "FLOAT"
--- type instance DbTypeName Sqlite ByteString = "BLOB"
--- type instance DbTypeName Sqlite Day = "TEXT"
--- type instance DbTypeName Sqlite (Fixed a) = "INTEGER"
--- type instance DbTypeName Sqlite UTCTime = "TEXT"
 
 instance Db Sqlite where
     type SessionParams Sqlite = Text

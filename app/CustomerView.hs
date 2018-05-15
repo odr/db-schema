@@ -12,7 +12,6 @@
 module CustomerView where
 
 import           Data.Generics.Product (field)
-import           DbSchema.DML
 import           GHC.Generics
 import           Lens.Micro            ((^.))
 

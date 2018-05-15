@@ -17,10 +17,9 @@ import           Control.Applicative          (ZipList (..))
 import           Control.Arrow                ((&&&))
 import           Control.Monad.Catch          (MonadMask, finally)
 import           Data.Bifunctor               (bimap, second)
-import           Data.Function                (on)
 import           Data.Functor.Compose         (Compose (..))
-import           Data.Kind                    (Constraint, Type)
-import           Data.List                    (deleteFirstsBy, union, (\\))
+import           Data.Kind                    (Type)
+import           Data.List                    ((\\))
 import qualified Data.Map                     as M
 import           Data.Maybe                   (fromMaybe)
 import           Data.Proxy                   (Proxy)
@@ -289,7 +288,7 @@ dmlUpdateDef (_ :: Proxy '(b,sch,t)) isDiff (vals :: f (p,[r],[r])) = do
                       [(length names)..] keyNames
         )
     --
-    updateDiff = traverse (\(p,us') ->
+    updateDiff = mapM_ (\(p,us') ->
                       mapM_ (\x@(_,n) -> run p n $ diff x) us') us
       where
         run p r difs
@@ -305,14 +304,15 @@ dmlUpdateDef (_ :: Proxy '(b,sch,t)) isDiff (vals :: f (p,[r],[r])) = do
               . uncurry zip
               . bimap (recToDb @b @sch) (recToDb @b @sch)
     --
-    updateFull = do
-      cmd <- prepareCommand @b $ sql Nothing
-      finally (traverse (\(p,us') -> mapM_ (\(_,n) -> run cmd p n) us') us)
-              (finalizePrepared @b cmd)
-      where
-        run cmd p n = runPrepared @b cmd
-                        (recToDb @b @sch n ++ dmlKeyVals @b @sch @t p n)
-
+    updateFull
+      | all (null . snd) us = mapM_ (\_ -> return ()) us
+      | otherwise = do
+        cmd <- prepareCommand @b $ sql Nothing
+        finally (mapM_ (\(p,us') -> mapM_ (\(_,n) -> run cmd p n) us') us)
+                (finalizePrepared @b cmd)
+        where
+          run cmd p n = runPrepared @b cmd
+                          (recToDb @b @sch n ++ dmlKeyVals @b @sch @t p n)
     --
     key = getSub @(KeyNames sch t)
     mkMap p = M.fromList . map (\x -> (key (p,x), x))

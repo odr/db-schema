@@ -10,7 +10,7 @@ module DbSchema.TH.MkSchema where
 
 import           Data.Bifunctor      (second)
 import qualified Data.Text           as T
-import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q (..), TyLit (..),
+import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q, TyLit (..),
                                       Type (..), conT, litE, sigE, stringL)
 
 import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
@@ -29,41 +29,41 @@ mkSchema db sch qt
 mkInsts :: Name -> Name
         -> ([(Type,Name,Type,[(Type,Type)])],[((Type, Type), (Type,Type))])
         -> Q [Dec]
-mkInsts db sch (tabs, rels) = concat <$> sequence
-  [ concat <$> mapM (instTab db sch rels) tabs
+mkInsts db sch (tabs, rls) = concat <$> sequence
+  [ concat <$> mapM (instTab db sch rls) tabs
   , concat <$> mapM (\(_,(n,d)) -> let nQ = return n in
           [d| instance CRelDef $(schQ) $(nQ) where
                 type TRelDef $(schQ) $(nQ) = $(return d)
               instance DDLRel $(conT db) $(schQ) $(nQ)
           |]
-        ) rels
+        ) rls
   , [d| instance CSchema $(schQ) where
           type TTables $(schQ) = $(return tabNames)
           type TRels   $(schQ) = $(return relNames)
         instance DDLSchema $(conT db) $(schQ)
     |]
-  , concat <$> mapM (\(LitT (StrTyLit tn),rc,_,_) -> 
+  , concat <$> mapM (\(LitT (StrTyLit tn),rc,_,_) ->
                         mkView db sch tn mempty rc) tabs
   ]
   where
     schQ = conT sch
     tabNames = toPromotedList $ map (\(tn,_,_,_)->tn) tabs
-    relNames = toPromotedList $ map (\(_,(rn,_))->rn) rels
+    relNames = toPromotedList $ map (\(_,(rn,_))->rn) rls
 
 instTab :: Name -> Name -> [((Type,Type),(Type, Type))]
         -> (Type, Name, Type, [(Type,Type)])
         -> Q [Dec]
-instTab db sch rels (tabName,rc,tabDef,flds) =
+instTab db sch rls (tabNm,rc,tabDf,flds) =
   concat <$> sequence ( [ inst >>= mapM (\i -> setInsts i <$> insts), instDDLT]
                       ++ map tabFld flds
                       )
 
   where
     schQ = conT sch
-    tabQ = return tabName
+    tabQ = return tabNm
     instTabDef = [d|
       type instance TTabRec $(schQ) $(tabQ) = $(conT rc)
-      type instance TTabDef $(schQ) $(tabQ) = $(return tabDef)
+      type instance TTabDef $(schQ) $(tabQ) = $(return tabDf)
       type instance TFlds $(schQ) $(tabQ) = $(fldsQ)
       |]
       where
@@ -74,7 +74,7 @@ instTab db sch rels (tabName,rc,tabDef,flds) =
             <$> [d|type instance TRelFrom $(schQ) $(tabQ) = $(return ns)|])
       $ toPromotedList
       $ map (\(_,(n,_)) -> n)
-      $ filter (\((from,to),_) -> tabName == if isFrom then from else to) rels
+      $ filter (\((from,to),_) -> tabNm == if isFrom then from else to) rls
     instDDLT = [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
 
     inst :: Q [Dec]
@@ -85,6 +85,7 @@ instTab db sch rels (tabName,rc,tabDef,flds) =
           , concat <$> mapM instRel [True,False]
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
+    setInsts _ = error "invalid instance definition in setInsts"
     tabFld (fn,ft) = [d|
       instance TabFld $(schQ) $(tabQ) $(return fn) where
         type TabFldType $(schQ) $(tabQ) $(return fn) = $(return ft)
@@ -92,27 +93,27 @@ instTab db sch rels (tabName,rc,tabDef,flds) =
 
 tabPreToTabRel
   :: Type -> Q ((Type, Name, Type, [(Type,Type)]), [((Type,Type),(Type,Type))])
-tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rc)) pk) uk) ai) relTo) = do
+tabPreToTabRel (AppT (AppT (AppT (AppT (AppT _ (ConT rc)) pk) uk) ai) rlTo) = do
   flds <- recToFlds rc
   return
-    ( ( tabName
+    ( ( tabNm
       , rc
       , AppT (AppT (AppT (AppT (PromotedT 'TabDefC)
                                (toPromotedList $ map fst flds)) pk) uk) ai
       , flds
       )
-    , map (relToToRelDef tabName) $ fromPromotedList relTo
+    , map (relToToRelDef tabNm) $ fromPromotedList rlTo
     )
   where
-    tabName = nameToSym rc
-
+    tabNm = nameToSym rc
+tabPreToTabRel _ = error "Invalid type in tabPreToTabRel"
 -- Tab -> rel -> ((from,to),(rel,def))
 relToToRelDef :: Type -> Type -> ((Type,Type),(Type,Type))
 relToToRelDef rfrom (AppT (AppT (AppT (AppT _ (LitT (StrTyLit rname))) rto) rcols) rdc) =
   ( (rfrom,rto)
   , (strToSym rname, AppT (AppT (AppT (AppT (PromotedT 'RelDefC) rfrom) rto) rcols) rdc)
   )
-relToToRelDef rfrom x = error "err in relToToRelDef"
+relToToRelDef _ _ = error "err in relToToRelDef"
 
 fromPromotedList :: Type -> [Type]
 fromPromotedList = \case
@@ -122,3 +123,4 @@ fromPromotedList = \case
 
 symToStrEQ :: Type -> ExpQ
 symToStrEQ (LitT (StrTyLit v)) = sigE (litE $ stringL v) [t| T.Text |]
+symToStrEQ _                   = error "Invalid type in symToStrEQ"

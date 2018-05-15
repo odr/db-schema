@@ -16,7 +16,6 @@
 {-# LANGUAGE UndecidableInstances      #-}
 module DbSchema.Condition where
 
-import           Control.Monad              (zipWithM)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State

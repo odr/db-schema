@@ -3,24 +3,18 @@
 {-# LANGUAGE FlexibleContexts        #-}
 {-# LANGUAGE FlexibleInstances       #-}
 {-# LANGUAGE KindSignatures          #-}
-{-# LANGUAGE MagicHash               #-}
 {-# LANGUAGE MultiParamTypeClasses   #-}
-{-# LANGUAGE OverloadedStrings       #-}
 {-# LANGUAGE ScopedTypeVariables     #-}
-{-# LANGUAGE TupleSections           #-}
 {-# LANGUAGE TypeApplications        #-}
 {-# LANGUAGE TypeOperators           #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 module DbSchema.DDL where
 import           Control.Monad.IO.Class (MonadIO)
-import           Data.Proxy             (Proxy (..))
 import qualified Data.Text              as T
 import           GHC.TypeLits           (Symbol)
 
 import           DbSchema.Db
 import           DbSchema.Def
-import           DbSchema.Util.Format   (Only (..), format)
-import           DbSchema.Util.ToStar
 
 class (Db b, CSchema sch, CTabDef sch s, CRecDef b sch (TTabRec sch s))
     => DDLTab b sch s where

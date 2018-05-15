@@ -1,13 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE DataKinds            #-}
 {-# LANGUAGE FlexibleContexts     #-}
+{-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
-
 
 module DbSchema.Db.Db (module DbSchema.Db.Db) where
 
@@ -16,13 +16,20 @@ import           Control.Monad.IO.Class     as DbSchema.Db.Db
 import           Control.Monad.Trans.Reader (ReaderT)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
+import           Type.Reflection            (Typeable, typeRep)
 
 import           DbSchema.Util.Format
+import           DbSchema.Util.ToStar       (TStar, ToStar (..))
 
 
 
 data DelCons = DcRestrict | DcCascade | DcSetNull
-  deriving (Show, Eq, Ord, Read)
+  deriving (Show, Eq, Ord, Read, Typeable)
+--
+type instance TStar DelCons = DelCons
+
+instance Typeable s => ToStar (s::DelCons) where
+  toStar = read $ tail $ show $ typeRep @s
 
 type SessionMonad b m = ReaderT (Conn b) m
 
@@ -46,7 +53,7 @@ class Eq (FieldDB back) => Db back where
     , foldMap (format ", UNIQUE ({})" . Only . T.intercalate ",") uk
     )
     where
-      rc (n, (t,b)) = format "{} {} {} NULL" (n,t, if b then T.empty else "NOT")
+      rc (n, (tt,b)) = format "{} {} {} NULL" (n,tt, if b then T.empty else "NOT")
 
   dropTableText :: Text -> Text
   dropTableText = format "DROP TABLE {}" . Only
@@ -89,3 +96,4 @@ class Eq (FieldDB back) => Db back where
   condLike :: Text -> Text -> Text
   condLike name par
       = format "lower({}) LIKE '%' + lower({}) + '%'" (name, par)
+
