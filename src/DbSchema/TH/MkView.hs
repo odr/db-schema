@@ -17,7 +17,9 @@ import           Data.Bifunctor            (second)
 import           Data.List                 (nub, partition, (\\))
 import qualified Data.Map                  as M
 import qualified Data.Set                  as S
+import           Data.Tagged               (Tagged)
 import qualified Data.Text                 as T
+import           GHC.TypeLits              (Symbol)
 import           Language.Haskell.TH
 
 import           DbSchema.Db
@@ -96,8 +98,9 @@ mkViewM tn rc = do
       recToDb c = concatMap ($ c) $(expLstToDb dbQ rcQ fs)
       recFromDb = $(expFromDb db sch flds)
 
-    instance ParConstr $(dbQ) $(schQ) p $(rcQ)
+    instance ParConstr $(dbQ) $(schQ) $(return tn) p $(rcQ)
           => DML $(dbQ) $(schQ) $(return tn) p $(rcQ)
+    -- instance DML $(dbQ) $(schQ) $(return tn) (Tagged ('[]::[Symbol]) ()) $(rcQ)
     |]
   tell rs
   where

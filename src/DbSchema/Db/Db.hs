@@ -1,11 +1,13 @@
 {-# LANGUAGE AllowAmbiguousTypes  #-}
 {-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE TypeApplications     #-}
 {-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE UndecidableInstances #-}
+
 
 module DbSchema.Db.Db (module DbSchema.Db.Db) where
 
@@ -25,7 +27,8 @@ data DelCons = DcRestrict | DcCascade | DcSetNull
 type SessionMonad b m = ReaderT (Conn b) m
 
 -- | Options for backend
-class Db back where
+-- | Constraint `Eq (FieldDB back)` for check differences on update
+class Eq (FieldDB back) => Db back where
   type FieldDB back
   type Conn back
   type SessionParams back
