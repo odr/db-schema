@@ -21,7 +21,7 @@ import           Data.Functor.Compose         (Compose (..))
 import           Data.Kind                    (Type)
 import           Data.List                    ((\\))
 import qualified Data.Map                     as M
-import           Data.Maybe                   (fromMaybe)
+-- import           Data.Maybe                   (fromMaybe)
 import           Data.Proxy                   (Proxy)
 import           Data.Singletons.Prelude
 import           Data.Singletons.Prelude.List
@@ -277,7 +277,10 @@ dmlUpdateDef (_ :: Proxy '(b,sch,t)) isDiff (vals :: f (p,[r],[r])) = do
   where
     recNames = dmlRecNames @b @sch @t @p @r
     keyNames = dmlKeyNames @b @sch @t @p @r
-    sql mbDifs = let names = fromMaybe recNames mbDifs in
+    recVals = filter ((`notElem` keyNames) . fst)
+            . zip recNames . recToDb @b @sch
+
+    sql names =
       format "UPDATE {} SET {} WHERE {}"
         ( tabName @sch @t
         , T.intercalate ","
@@ -294,25 +297,24 @@ dmlUpdateDef (_ :: Proxy '(b,sch,t)) isDiff (vals :: f (p,[r],[r])) = do
         run p r difs
           | null difs = return ()
           | otherwise = do
-            cmd <- prepareCommand @b $ sql $ Just $ map fst difs
+            cmd <- prepareCommand @b $ sql $ map fst difs
             finally (runPrepared @b cmd $ map snd difs
                                         ++ dmlKeyVals @b @sch @t p r)
                     (finalizePrepared @b cmd)
-        diff = map (second snd)
-              . filter (uncurry (/=) . snd)
-              . zip recNames
+        diff = map snd
+              . filter (uncurry (/=) . bimap snd snd)
               . uncurry zip
-              . bimap (recToDb @b @sch) (recToDb @b @sch)
+              . bimap recVals recVals
     --
     updateFull
       | all (null . snd) us = mapM_ (\_ -> return ()) us
       | otherwise = do
-        cmd <- prepareCommand @b $ sql Nothing
+        cmd <- prepareCommand @b $ sql $ recNames \\ keyNames
         finally (mapM_ (\(p,us') -> mapM_ (\(_,n) -> run cmd p n) us') us)
                 (finalizePrepared @b cmd)
         where
           run cmd p n = runPrepared @b cmd
-                          (recToDb @b @sch n ++ dmlKeyVals @b @sch @t p n)
+                      $ map snd (recVals n) ++ dmlKeyVals @b @sch @t p n
     --
     key = getSub @(KeyNames sch t)
     mkMap p = M.fromList . map (\x -> (key (p,x), x))
