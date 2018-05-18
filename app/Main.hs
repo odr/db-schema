@@ -2,6 +2,7 @@
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 module Main where
 
@@ -42,16 +43,16 @@ test :: UTCTime -> SessionMonad Dbs IO ([CustomerT], [CustomerT])
 test d = do
   dropSchema @Dbs @Sch
   createSchema @Dbs @Sch
-  rs <- dmlInsert @Dbs @Sch @"Customer" $ ZipList [(parEmpty, customers d)]
+  rs <- dmlInsert @Dbs @Sch @"Customer" $ ZipList [((), customers d)]
   (rs' :: ZipList [CustomerT]) <- dmlSelect @Dbs @Sch @"Customer"
-      $ ZipList $ map (Tagged @'["id"]) [1..3::Int64]
+      $ ZipList $ map ((,()) . (Tagged @'["id"])) [1..3::Int64]
   return (concat $ getZipList rs, concat $ getZipList rs')
 --
 test2 :: UTCTime -> [CustomerT] -> SessionMonad Dbs IO ([CustomerT], [CustomerT])
 test2 d cs = do
-  rs <- dmlUpdate @Dbs @Sch @"Customer" False $ ZipList [(parEmpty, cs, customers2 d)]
+  rs <- dmlUpdate @Dbs @Sch @"Customer" False $ ZipList [((), cs, customers2 d)]
   (rs' :: ZipList [CustomerT]) <- dmlSelect @Dbs @Sch @"Customer"
-      $ ZipList $ map (Tagged @'["id"]) [1..3::Int64]
+      $ ZipList $ map ((,()) . (Tagged @'["id"])) [1..3::Int64]
   return (concat $ getZipList rs, concat $ getZipList rs')
 
 

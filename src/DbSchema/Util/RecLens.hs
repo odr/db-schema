@@ -59,6 +59,9 @@ instance RecLens s (Tagged ss v2)
 class Rec r where
   type TRec r :: [(Symbol,Type)]
 
+instance Rec ()   where
+  type TRec () = '[]
+
 instance Rec (Tagged ('[] :: [Symbol]) ())   where
   type TRec (Tagged ('[] :: [Symbol]) ()) = '[]
 
@@ -82,9 +85,9 @@ instance RecLens s v1 => RecLensB 'True s (v1,v2) where
 instance RecLens s v2 => RecLensB 'False s (v1,v2) where
   type TLensB 'False s (v1,v2) = TLens s v2
   recLensB f (v1,v2) = (v1,) <$> (recLens @s @v2) f v2
---
+
 type family Untag a where
-  Untag (Tagged a b) = b
+  Untag (Tagged x y) = y
 
 class SubRec (ns :: [Symbol]) r where
   type TSubRec ns r
