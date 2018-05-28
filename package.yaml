@@ -33,9 +33,11 @@ dependencies:
 - time
 - generic-lens
 - microlens
+- microlens-th
 - containers
 - tagged
 - aeson
+- double-conversion
 
 library:
   source-dirs: src
@@ -51,6 +53,8 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     - -Wall
+    - -ddump-splices
+    - -ddump-to-file
     dependencies:
     - db-schema
 

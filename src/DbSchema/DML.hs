@@ -154,7 +154,7 @@ dmlDeleteDef (_::Proxy '(b,sch,t)) (vals :: f (p,[r]))
     sql = format "DELETE FROM {} WHERE {}"
                 ( toStar @_ @t
                 , T.intercalate " AND "
-                    $ zipWith (\n p -> format "{} = {}" (n, p)) ns ps
+                    $ zipWith (curry $ format "{} = {}") ns ps
                 )
 --
 dmlSelectDef :: (DML b sch t p r, AppMon f m, CRecDef b sch q)
@@ -166,7 +166,7 @@ dmlSelectDef (_::Proxy '(b,sch,t,r)) (ps ::f (q,p))
     rs <- fmap (second $ map (either (error . T.unpack) id . getFromDb @b @sch))
       <$> finally
         (mapM (\(q,p) -> (p,) <$>
-              (runSelect @b cmd $ recToDb @b @sch q ++ recToDb @b @sch p)) ps)
+              runSelect @b cmd (recToDb @b @sch q ++ recToDb @b @sch p)) ps)
         (finalizePrepared @b cmd)
     childSelect @b @sch @(TRecChilds b sch r) rs
   where
@@ -285,13 +285,13 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
                  , r ^. recLens @s
                  )
   childInsert rs = do
-    ch <- (fmap getZipList . getCompose)
+    ch <- fmap getZipList . getCompose
       <$> ( dmlInsert @b @sch @ct
           . Compose
           . fmap (ZipList . (\(p,rs') -> map (fstChild @b @sch @css p) rs'))
           ) rs
     childInsert @b @sch @cs $ (,) <$> (fst <$> rs)
-                <*> ((zipWith (\c -> recLens @s .~ c)) <$> ch <*> (snd <$> rs))
+                <*> (zipWith (\c -> recLens @s .~ c) <$> ch <*> (snd <$> rs))
 
   childDelete rs = do
     dmlDelete @b @sch @ct
@@ -302,7 +302,7 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
   childSelect rs
     | all (null . snd) rs = return $ snd <$> rs
     | otherwise           = do
-      ch <- (fmap getZipList . getCompose)
+      ch <- fmap getZipList . getCompose
         <$> ( dmlSelect @b @sch @ct
             . Compose
             . fmap ( ZipList
@@ -311,10 +311,10 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
             ) rs
       childSelect @b @sch @cs
         $ (,) <$> (fst <$> rs)
-              <*> ((zipWith (\c -> recLens @s .~ c)) <$> ch <*> (snd <$> rs))
+              <*> (zipWith (\c -> recLens @s .~ c) <$> ch <*> (snd <$> rs))
 
   childUpdate isDiff us = do
-    us' <- (fmap getZipList . getCompose)
+    us' <- fmap getZipList . getCompose
         <$> ( dmlUpdate @b @sch @ct isDiff
             . Compose
             . fmap (ZipList . (\(p,rs) ->
@@ -327,5 +327,3 @@ instance (DmlChild b sch cs p r, rd ~ TRelDef sch s
       where
         setUpd (p, par) ch =
           (p, zipWith (\c (o,n) -> (o, n & recLens @s .~ c)) ch par)
-
-

@@ -29,12 +29,12 @@ instance KnownSymbol s => ToStar (s::Symbol) where
 instance Typeable s => ToStar (s::Bool) where
   toStar = read $ tail $ show $ typeRep @s
 
-instance ToStar ('[]) where
+instance ToStar '[] where
   toStar = []
 
 instance (ToStar x, ToStar xs)
       => ToStar (x ': xs) where
   toStar = toStar @_ @x : toStar @_ @xs
 
-instance (ToStar x, ToStar y) => ToStar ('(x,y)) where
+instance (ToStar x, ToStar y) => ToStar '(x,y) where
   toStar = (toStar @_ @x, toStar @_ @y)

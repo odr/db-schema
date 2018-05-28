@@ -48,12 +48,12 @@ class RecLensB (b::Bool) (s::Symbol) v where
 
 instance RecLensB 'True s (Tagged (s ': ss) (v1,v2)) where
   type TLensB 'True s (Tagged (s ': ss) (v1,v2)) = v1
-  recLensB f (Tagged (v1,v2))= (Tagged @(s ': ss) . (,v2)) <$> f v1
+  recLensB f (Tagged (v1,v2))= Tagged @(s ': ss) . (,v2) <$> f v1
 --
 instance RecLens s (Tagged ss v2)
       => RecLensB 'False s (Tagged (s1 ': ss) (v1,v2)) where
   type TLensB 'False s (Tagged (s1 ': ss) (v1,v2)) = TLens s (Tagged ss v2)
-  recLensB f (Tagged (v1,v2)) = (Tagged @(s1 ': ss) . (v1,) . untag)
+  recLensB f (Tagged (v1,v2)) = Tagged @(s1 ': ss) . (v1,) . untag
                             <$> recLens @s @(Tagged ss v2) f (Tagged @ss v2)
 
 class Rec r where
@@ -80,11 +80,11 @@ instance (Rec v1, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
 --
 instance RecLens s v1 => RecLensB 'True s (v1,v2) where
   type TLensB 'True s (v1,v2) = TLens s v1
-  recLensB f (v1,v2) = (,v2) <$> (recLens @s @v1) f v1
+  recLensB f (v1,v2) = (,v2) <$> recLens @s @v1 f v1
 --
 instance RecLens s v2 => RecLensB 'False s (v1,v2) where
   type TLensB 'False s (v1,v2) = TLens s v2
-  recLensB f (v1,v2) = (v1,) <$> (recLens @s @v2) f v2
+  recLensB f (v1,v2) = (v1,) <$> recLens @s @v2 f v2
 
 type family Untag a where
   Untag (Tagged x y) = y
@@ -125,4 +125,3 @@ instance MbMaybeB (a==b) a b => MbMaybe '[n] a b where
 instance (MbMaybeB (a1==b1) a1 b1, MbMaybe (n2 ':ns) as bs)
       => MbMaybe (n1 ':n2 ':ns) (a1,as) (b1,bs) where
   mbMaybe (a1,as) = (mbMaybeB @(a1==b1) a1, mbMaybe @(n2 ':ns) as)
-

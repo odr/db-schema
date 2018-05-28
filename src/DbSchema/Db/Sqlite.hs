@@ -85,7 +85,7 @@ instance Db Sqlite where
           then return (frs [])
           else fmap (\r -> frs . (r:)) (columns p) >>= loop
 
-    getLastKey = ask >>= \conn -> liftIO (lastInsertRowId conn)
+    getLastKey = ask >>= liftIO . lastInsertRowId 
     execCommand cmd = do
       liftIO $ print $ "execCommand: " <> cmd
       ask >>= \conn -> liftIO (exec conn cmd)
@@ -119,21 +119,21 @@ instance CFldDef Sqlite name val => CFldDef Sqlite name (Maybe val) where
   fldToDb   = defMbToDb (Proxy @Sqlite) (Proxy @name) SQLNull
   fldFromDb = defMbFromDb (Proxy @Sqlite) (Proxy @name)
                           (\case {SQLNull -> True; _ -> False})
---
+
 instance ToStar name => CFldDef Sqlite name Int where
   fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral
-  fldFromDb = fmap fromIntegral $ fldFromDb @Sqlite @name @Int64
+  fldFromDb = fromIntegral <$> fldFromDb @Sqlite @name @Int64
 --
 instance ToStar name => CFldDef Sqlite name (Fixed n) where
   fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . fromIntegral . (\(MkFixed v) -> v)
-  fldFromDb = fmap (MkFixed . fromIntegral) $ fldFromDb @Sqlite @name @Int64
+  fldFromDb = MkFixed . fromIntegral <$> fldFromDb @Sqlite @name @Int64
 
 instance ToStar name => CFldDef Sqlite name Bool where
   fldDbDef = [(toStar @_ @name, ("INTEGER", False))]
   fldToDb   = fldToDb @Sqlite @name @Int64 . (\b -> if b then 1 else 0)
-  fldFromDb = fmap (==1) $ fldFromDb @Sqlite @name @Int64
+  fldFromDb = (==1) <$> fldFromDb @Sqlite @name @Int64
 
 instance ToStar name => CFldDef Sqlite name Day where
   fldDbDef = [(toStar @_ @name, ("TEXT", False))]

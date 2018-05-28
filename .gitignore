@@ -3,3 +3,4 @@ db-schema.cabal
 *.db
 *~
 .vscode/
+*.dump*

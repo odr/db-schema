@@ -8,10 +8,13 @@
 {-# LANGUAGE TypeOperators         #-}
 module DbSchema.TH.MkSchema where
 
+-- import           Control.Monad.Trans.RWS
 import           Data.Bifunctor      (second)
+-- import qualified Data.Set                as S
 import qualified Data.Text           as T
 import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q, TyLit (..),
-                                      Type (..), conT, litE, sigE, stringL)
+                                      Type (..), conT, litE, reifyInstances,
+                                      sigE, stringL)
 
 import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
 import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
@@ -19,23 +22,31 @@ import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
 import           DbSchema.TH.MkView  (mkView, nameToSym, recToFlds, strToSym,
                                       toPromotedList, toPromotedPair)
 
-
 mkSchema :: Name -> Name -> Q Type -> Q [Dec]
 mkSchema db sch qt
   = fmap fromPromotedList qt
   >>= fmap (second concat . unzip) . mapM tabPreToTabRel
   >>= mkInsts db sch
 
+mkInst :: Q Type -> [Type] -> Q [Dec] -> Q [Dec]
+mkInst qt ts qd = do
+  (ConT c) <- qt
+  ri <- reifyInstances c ts
+  if null ri then qd else return []
+
 mkInsts :: Name -> Name
         -> ([(Type,Name,Type,[(Type,Type)])],[((Type, Type), (Type,Type))])
         -> Q [Dec]
 mkInsts db sch (tabs, rls) = concat <$> sequence
   [ concat <$> mapM (instTab db sch rls) tabs
-  , concat <$> mapM (\(_,(n,d)) -> let nQ = return n in
-          [d| instance CRelDef $(schQ) $(nQ) where
-                type TRelDef $(schQ) $(nQ) = $(return d)
-              instance DDLRel $(conT db) $(schQ) $(nQ)
-          |]
+  , concat <$> mapM (\(_,(n,d)) -> let nQ = return n in (++)
+          <$> mkInst [t|CRelDef|] [ConT sch, n]
+                [d| instance CRelDef $(schQ) $(nQ) where
+                      type TRelDef $(schQ) $(nQ) = $(return d)
+                |]
+          <*> mkInst [t|DDLRel|] [ConT db, ConT sch, n]
+                [d| instance DDLRel $(conT db) $(schQ) $(nQ) |]
+
         ) rls
   , [d| instance CSchema $(schQ) where
           type TTables $(schQ) = $(return tabNames)
@@ -75,10 +86,12 @@ instTab db sch rls (tabNm,rc,tabDf,flds) =
       $ toPromotedList
       $ map (\(_,(n,_)) -> n)
       $ filter (\((from,to),_) -> tabNm == if isFrom then from else to) rls
-    instDDLT = [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
+    instDDLT = mkInst [t|DDLTab|] [ConT db, ConT sch, tabNm]
+                      [d| instance DDLTab $(conT db) $(schQ) $(tabQ) |]
 
     inst :: Q [Dec]
-    inst = [d| instance CTabDef $(schQ) $(tabQ) |]
+    inst = mkInst [t|CTabDef|] [ConT sch, tabNm]
+                  [d| instance CTabDef $(schQ) $(tabQ) |]
 
     insts = concat <$> sequence
           [ instTabDef
@@ -86,9 +99,9 @@ instTab db sch rls (tabNm,rc,tabDf,flds) =
           ]
     setInsts (InstanceD a b c _) = InstanceD a b c
     setInsts _ = error "invalid instance definition in setInsts"
-    tabFld (fn,ft) = [d|
-      instance TabFld $(schQ) $(tabQ) $(return fn) where
-        type TabFldType $(schQ) $(tabQ) $(return fn) = $(return ft)
+    tabFld (fn,ft) = mkInst [t|TabFld|] [ConT sch, tabNm, fn]
+      [d| instance TabFld $(schQ) $(tabQ) $(return fn) where
+            type TabFldType $(schQ) $(tabQ) $(return fn) = $(return ft)
       |]
 
 tabPreToTabRel

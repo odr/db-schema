@@ -80,7 +80,7 @@ deriving instance Show (Cond db sch t)
 --
 class CCond (n::Symbol) db sch (t::Symbol) where
   pcmp    :: (TabFld sch t n, CFldDef db n (TabFldType sch t n))
-          => Cmp -> (TabFldType sch t n) -> Cond db sch t
+          => Cmp -> TabFldType sch t n -> Cond db sch t
   pnull   :: (TabFld sch t n, CFldDef db n (TabFldType sch t n)) => Cond db sch t
   pchild  :: forall rel . (rel ~ TRelDef sch n, t ~ RdTo rel
                           , CTabDef sch (RdFrom rel), CRelDef sch n
@@ -152,7 +152,7 @@ convCond (condition :: Cond db sch t) = case condition of
     let nvs = zip (map fst $ fldDbDef @db @n @(TabFldType sch t n))
             $ fldToDb @db @n v
     ntab <- lift $ fst <$> get
-    (first (T.intercalate " AND ") . unzip) <$> mapM (\(n,vdb) ->
+    first (T.intercalate " AND ") . unzip <$> mapM (\(n,vdb) ->
       let nm = format "t{}.{}" (ntab, n) in
         withPar (Proxy @db) $ \par ->
             (case cmp of

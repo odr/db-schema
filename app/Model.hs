@@ -9,14 +9,15 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE UndecidableInstances  #-}
 {-# OPTIONS_GHC -fno-warn-unticked-promoted-constructors #-}
+
 module Model(module Model) where
 
 import           Data.Fixed            as Model
 import           Data.Generics.Product (field)
 import           Data.Int              as Model (Int64)
-import           Data.Text
+-- import           Data.Text
 import           Data.Time             as Model
-import           GHC.Generics
+import           GHC.Generics          (Generic)
 import           Lens.Micro            ((^.))
 
 import           DbSchema.Db           as Model

@@ -28,8 +28,8 @@ import           DbSchema.Def
 import           DbSchema.DML
 import           DbSchema.Util.RecLens
 
-showReify :: Name -> ExpQ
-showReify n = reify n >>= stringE . show
+-- showReify :: Name -> ExpQ
+-- showReify n = reify n >>= stringE . show
 
 data ViewEnv = VE { veDb   :: Name
                   , veSch  :: Name

@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeOperators             #-}
 {-# LANGUAGE UndecidableInstances      #-}
 {-# LANGUAGE UndecidableSuperClasses   #-}
+
 module DbSchema.Def where
 
 import           Control.Monad.Trans.Class        (lift)
@@ -257,7 +258,7 @@ instance CRecDef db sch () where
   type TRecChilds db sch () = '[]
   recDbDef = []
   recToDb () = []
-  recFromDb = return $ ()
+  recFromDb = return ()
 
 instance CFldDef db n a
       => CRecDef db sch (Tagged ('[n]::[Symbol]) a) where
