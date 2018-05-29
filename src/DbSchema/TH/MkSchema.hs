@@ -19,8 +19,9 @@ import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q, TyLit (..),
 import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
 import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
                                       RelDef (..), TabDef (..), TabFld (..))
-import           DbSchema.TH.MkView  (mkView, nameToSym, recToFlds, strToSym,
-                                      toPromotedList, toPromotedPair)
+import           DbSchema.TH.MkView  (fromPromotedList, mkView, nameToSym,
+                                      recToFlds, strToSym, toPromotedList,
+                                      toPromotedPair)
 
 mkSchema :: Name -> Name -> Q Type -> Q [Dec]
 mkSchema db sch qt
@@ -127,12 +128,6 @@ relToToRelDef rfrom (AppT (AppT (AppT (AppT _ (LitT (StrTyLit rname))) rto) rcol
   , (strToSym rname, AppT (AppT (AppT (AppT (PromotedT 'RelDefC) rfrom) rto) rcols) rdc)
   )
 relToToRelDef _ _ = error "err in relToToRelDef"
-
-fromPromotedList :: Type -> [Type]
-fromPromotedList = \case
-  PromotedNilT -> []
-  AppT (AppT PromotedConsT x) xs -> x : fromPromotedList xs
-  _ -> error "Invalid promoted list"
 
 symToStrEQ :: Type -> ExpQ
 symToStrEQ (LitT (StrTyLit v)) = sigE (litE $ stringL v) [t| T.Text |]

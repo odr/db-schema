@@ -12,85 +12,36 @@
 
 module Model(module Model) where
 
-import           Data.Fixed            as Model
-import           Data.Generics.Product (field)
-import           Data.Int              as Model (Int64)
+import           Data.Fixed           as Model
+-- import           Data.Generics.Product (field)
+import           Data.Int             as Model (Int64)
 -- import           Data.Text
-import           Data.Time             as Model
-import           GHC.Generics          (Generic)
-import           Lens.Micro            ((^.))
+import           Data.Time            as Model
+-- import           GHC.Generics         (Generic)
+import           Lens.Micro           ((^.))
 
-import           DbSchema.Db           as Model
-import           DbSchema.Db.Sqlite    as Model (Sqlite)
-import           DbSchema.DDL          as Model
-import           DbSchema.Def          as Model
-import           DbSchema.TH.MkSchema  (mkSchema)
+import           DbSchema.Db          as Model
+import           DbSchema.Db.Sqlite   as Model (Sqlite)
+import           DbSchema.DDL         as Model
+import           DbSchema.Def         as Model
+import           DbSchema.TH.MkSchema (mkSchema)
 
-type Dbs = Sqlite
-
-data Customer = Customer  { id   :: Int64
-                          , name :: Text
-                          , note :: Text
-                          } deriving (Show,Eq,Ord,Generic)
-
-data Address = Address  { id         :: Int64
-                        , customerId :: Int64
-                        , val        :: Text
-                        , isActive   :: Bool
-                        } deriving (Show,Eq,Ord,Generic)
-
-data Article = Article  { id    :: Int64
-                        , name  :: Text
-                        , price :: Fixed E2
-                        } deriving (Show,Eq,Ord,Generic)
-
-data ArticlePrice = ArticlePrice { articleId :: Int64
-                                 , dayBegin  :: Day
-                                 , dayEnd    :: Maybe Day
-                                 , val       :: Fixed E2
-                                 } deriving (Show,Eq,Ord,Generic)
-
-data Orders = Orders  { id         :: Int64
-                      , num        :: Text
-                      , customerId :: Int64
-                      , payerId    :: Maybe Int64
-                      , day        :: Day
-                      } deriving (Show,Eq,Ord,Generic)
-
-data OrderPosition = OrderPosition  { orderId      :: Int64
-                                    , num          :: Int
-                                    , articleId    :: Int64
-                                    , quantity     :: Int
-                                    , price        :: Fixed E2
-                                    , currencyCode :: Text
-                                    } deriving (Show,Eq,Ord,Generic)
-
-data Payment = Payment  { id           :: Int64
-                        , orderId      :: Int64
-                        , dt           :: UTCTime
-                        , val          :: Fixed E2
-                        , currencyCode :: Text
-                        , note         :: Text
-                        } deriving (Show,Eq,Ord,Generic)
-
-data Currency = Currency { code :: Text
-                         , name :: Text
-                         } deriving (Show,Eq,Ord,Generic)
-
-data CurrRate = CurrRate { currencyCode :: Text
-                         , day          :: Day
-                         , coeff        :: Fixed E6
-                         } deriving (Show,Eq,Ord,Generic)
+import           Dbs
+import           TabData
 
 data Sch
 
 mkSchema ''Dbs ''Sch [t|
   '[TPD Customer '["id"] '[ '["name"]] True '[]
 
-  , TPD Address '["id"] '[] True
-      '[ RT "addrCust" "Customer" '[ '("customerId","id")] DcCascade
-      ]
+  , TPD Address '["id"] '[] True '[]
+    --   '[ RT "addrCust" "Customer" '[ '("customerId","id")] DcCascade
+    --   ]
 
+  , TPD CustomerAddress '["customerId", "addressId"] '[] False
+    '[ RT "caCustomer" "Customer" '[ '("customerId", "id")] DcCascade
+    ,  RT "caAddress" "Address" '[ '("addressId", "id")] DcCascade
+    ]
   , TPD Article '["id"] '[ '["name"]] False '[]
 
   , TPD ArticlePrice '["articleId", "dayBegin"] '[] False

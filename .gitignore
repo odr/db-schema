@@ -4,3 +4,4 @@ db-schema.cabal
 *~
 .vscode/
 *.dump*
+*.code-workspace

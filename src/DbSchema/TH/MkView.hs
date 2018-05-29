@@ -81,6 +81,32 @@ mkView db sch sTabName rls rc = do
     mbRecLens _ _ = Nothing
 
 -- trace ("mkViewM: " ++ pprint tn ++ ", " ++ pprint par ++ ", " ++ pprint rc) $
+isFld :: Type -> Bool
+isFld = \case
+  (AppT ListT (ConT _))  -> False
+  _                      -> True
+
+mkRecs :: TypeQ -> DecsQ
+mkRecs tq = fmap fromPromotedList tq >>= fmap concat . mapM mkRec
+  where
+    mkRec (ConT rc) = do
+      flds <- recToFlds rc
+
+      let (fs, _) = partition (isFld . snd) flds
+          rcQ = conT rc
+      (++) <$>
+        [d|
+          instance Rec $(rcQ) where
+            type TRec $(rcQ) = $(return (toPromotedList $ map toPromotedPair fs))
+          |] <*>
+        (concat <$> mapM (\(s,t) ->
+            [d| instance RecLens $(return s) $(rcQ) where
+                  type TLens $(return s) $(rcQ) = $(return t)
+                  recLens = field @($(return s))
+              |]
+          ) flds)
+    mkRec x = error $ "Invalid type " ++ pprint x ++ " in mkRecs"
+
 mkViewM :: Type -> Type -> Name -> MkViewMonad ()
 mkViewM tn par rc = do
   flds <- lift $ recToFlds rc
@@ -131,9 +157,6 @@ mkViewM tn par rc = do
     |] >>= tell >> modify (\x -> x {vsDml = (tn,par,rc) `S.insert` vsDml x})
 
   where
-    isFld = \case
-      (AppT ListT (ConT _))  -> False
-      _                      -> True
     getListType (AppT ListT (ConT t)) = t
     getListType _                     = error "Error in mkViewM.getListType"
 
@@ -203,3 +226,10 @@ conByType :: Name -> ExpQ
 conByType n = reify n >>= \case
   TyConI (DataD _ _ _ _ [RecC c _] _) -> conE c
   _ -> fail $ "Error on getting single constructor for type " ++ pprint n
+--
+fromPromotedList :: Type -> [Type]
+fromPromotedList = \case
+  PromotedNilT -> []
+  AppT (AppT PromotedConsT x) xs -> x : fromPromotedList xs
+  _ -> error "Invalid promoted list"
+
