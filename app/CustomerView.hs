@@ -11,14 +11,14 @@
 {-# LANGUAGE UndecidableInstances  #-}
 module CustomerView where
 
-import           Data.Generics.Product (field)
-import           GHC.Generics
-import           Lens.Micro            ((^.))
+import Data.Generics.Product (field)
+import GHC.Generics
+import Lens.Micro ((^.))
 
 
-import           DbSchema.TH.MkView
+import DbSchema.TH.MkView
 
-import           Model
+import Model
 
 {-
 Требуются валидации.

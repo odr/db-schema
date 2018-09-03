@@ -9,18 +9,18 @@
 module DbSchema.TH.MkSchema where
 
 -- import           Control.Monad.Trans.RWS
-import           Data.Bifunctor      (second)
+import           Data.Bifunctor (second)
 -- import qualified Data.Set                as S
-import qualified Data.Text           as T
-import           Language.Haskell.TH (Dec (..), ExpQ, Name, Q, TyLit (..),
-                                      Type (..), conT, litE, reifyInstances,
-                                      sigE, stringL)
+import qualified Data.Text as T
+import           Language.Haskell.TH
+  (Dec(..), ExpQ, Name, Q, TyLit(..), Type(..), conT, litE, reifyInstances,
+  sigE, stringL)
 
-import           DbSchema.DDL        (DDLRel (..), DDLSchema (..), DDLTab (..))
-import           DbSchema.Def        (CRelDef (..), CSchema (..), CTabDef (..),
-                                      RelDef (..), TabDef (..), TabFld (..))
-import           DbSchema.TH.MkView  (mkView, nameToSym, recToFlds, strToSym,
-                                      toPromotedList, toPromotedPair)
+import           DbSchema.DDL (DDLRel(..), DDLSchema(..), DDLTab(..))
+import           DbSchema.Def
+  (CRelDef(..), CSchema(..), CTabDef(..), RelDef(..), TabDef(..), TabFld(..))
+import           DbSchema.TH.MkView
+  (mkView, nameToSym, recToFlds, strToSym, toPromotedList, toPromotedPair)
 
 mkSchema :: Name -> Name -> Q Type -> Q [Dec]
 mkSchema db sch qt

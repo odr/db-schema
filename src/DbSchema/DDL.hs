@@ -10,8 +10,8 @@
 {-# LANGUAGE UndecidableSuperClasses #-}
 module DbSchema.DDL where
 import           Control.Monad.IO.Class (MonadIO)
-import qualified Data.Text              as T
-import           GHC.TypeLits           (Symbol)
+import qualified Data.Text as T
+import           GHC.TypeLits (Symbol)
 
 import           DbSchema.Db
 import           DbSchema.Def

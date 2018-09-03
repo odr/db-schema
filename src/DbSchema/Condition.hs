@@ -19,19 +19,19 @@ module DbSchema.Condition where
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State
-import           Data.Aeson                 (FromJSON (..), ToJSON (..))
+import           Data.Aeson (FromJSON(..), ToJSON(..))
 import           Data.Bifunctor
-import           Data.Proxy                 (Proxy (..))
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           Data.Tuple                 (swap)
-import           GHC.Generics               (Generic)
-import           GHC.OverloadedLabels       (IsLabel (..))
-import           GHC.TypeLits               (Symbol)
+import           Data.Proxy (Proxy(..))
+import           Data.Text (Text)
+import qualified Data.Text as T
+import           Data.Tuple (swap)
+import           GHC.Generics (Generic)
+import           GHC.OverloadedLabels (IsLabel(..))
+import           GHC.TypeLits (Symbol)
 
 import           DbSchema.Db
 import           DbSchema.Def
-import           DbSchema.Util.ToStar       (ToStar (..))
+import           DbSchema.Util.ToStar (ToStar(..))
 
 
 data CmpSimple = (:==) | (:<=) | (:>=) | (:>) | (:<) deriving (Show, Eq, Generic)

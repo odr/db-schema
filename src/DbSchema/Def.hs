@@ -17,24 +17,23 @@
 
 module DbSchema.Def where
 
-import           Control.Monad.Trans.Class        (lift)
-import           Control.Monad.Trans.Except       (ExceptT, runExceptT, throwE)
+import           Control.Monad.Trans.Class (lift)
+import           Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import           Control.Monad.Trans.State.Strict (State, evalState, get, put)
-import           Data.Kind                        (Constraint, Type)
-import           Data.List                        (group, sort, (\\))
-import qualified Data.Map                         as M
+import           Data.Kind (Constraint, Type)
+import           Data.List (group, sort, (\\))
+import qualified Data.Map as M
 import           Data.Singletons.Prelude
 import           Data.Singletons.Prelude.List
-import           Data.Singletons.TH               (promote)
-import           Data.Tagged                      (Tagged (..))
-import qualified Data.Text                        as T
-import           Lens.Micro                       ((&), (.~))
+import           Data.Singletons.TH (promote)
+import           Data.Tagged (Tagged(..))
+import qualified Data.Text as T
+import           Lens.Micro ((&), (.~))
 -- import           Type.Reflection                  (Typeable, typeRep)
 
-import           DbSchema.Db                      (Db (..), DelCons, MonadIO,
-                                                   SessionMonad)
+import           DbSchema.Db (Db(..), DelCons, MonadIO, SessionMonad)
 import           DbSchema.Util.RecLens
-import           DbSchema.Util.ToStar             (TStar, ToStar (..))
+import           DbSchema.Util.ToStar (TStar, ToStar(..))
 
 promote [d|
   data TabDef s = TabDefC { tdFlds    :: [s]

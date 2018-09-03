@@ -11,16 +11,16 @@
 {-# LANGUAGE TypeOperators         #-}
 module DbSchema.TH.MkView where
 
-import           Control.Monad             (when)
+import           Control.Monad (when)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.RWS
-import           Data.Bifunctor            (second)
-import           Data.List                 (partition)
-import qualified Data.Map                  as M
-import           Data.Maybe                (mapMaybe)
-import qualified Data.Set                  as S
-import           Data.Tagged               (Tagged)
-import qualified Data.Text                 as T
+import           Data.Bifunctor (second)
+import           Data.List (partition)
+import qualified Data.Map as M
+import           Data.Maybe (mapMaybe)
+import qualified Data.Set as S
+import           Data.Tagged (Tagged)
+import qualified Data.Text as T
 -- import           Debug.Trace
 import           Language.Haskell.TH
 

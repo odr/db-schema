@@ -14,13 +14,13 @@
 {-# LANGUAGE UndecidableSuperClasses   #-}
 module DbSchema.Util.RecLens where
 
-import           Data.Kind                     (Type)
-import           Data.Singletons.Prelude
-import           Data.Singletons.Prelude.Maybe (IsJust)
-import           Data.Tagged                   (Tagged (..), untag)
-import           Data.Type.Equality
-import           GHC.TypeLits                  (Symbol)
-import           Lens.Micro                    (lens, (.~), (^.))
+import Data.Kind (Type)
+import Data.Singletons.Prelude
+import Data.Singletons.Prelude.Maybe (IsJust)
+import Data.Tagged (Tagged(..), untag)
+import Data.Type.Equality
+import GHC.TypeLits (Symbol)
+import Lens.Micro (lens, (.~), (^.))
 
 -- Simple lens by (fldName :: Symbol)
 --  (a -> f a) -> b -> f b
