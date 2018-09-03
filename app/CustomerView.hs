@@ -30,15 +30,13 @@ import Model
 - в ordCust все ордера кастомера
 - в ordPayer - только те, которых нет в ordCust
 
-Альтернатива
-
 -}
-data CustomerT = CustomerT  { id       :: Int64
-                            , name     :: Text
-                            , addrCust :: [AddressT]
-                            , note     :: Text
-                            , ordCust  :: [OrderT]
-                            , ordPayer :: [OrderT]
+data CustomerT = CustomerT  { id         :: Int64
+                            , name       :: Text
+                            , caCustomer :: [CustomerAddress]
+                            , note       :: Text
+                            , ordCust    :: [OrderT]
+                            , ordPayer   :: [OrderT]
                             } deriving (Show,Eq,Ord,Generic)
 
 data AddressT = AddressT  { id       :: Int64

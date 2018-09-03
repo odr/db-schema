@@ -8,9 +8,7 @@
 {-# LANGUAGE TypeOperators         #-}
 module DbSchema.TH.MkSchema where
 
--- import           Control.Monad.Trans.RWS
 import           Data.Bifunctor (second)
--- import qualified Data.Set                as S
 import qualified Data.Text as T
 import           Language.Haskell.TH
   (Dec(..), ExpQ, Name, Q, TyLit(..), Type(..), conT, litE, reifyInstances,
@@ -127,12 +125,6 @@ relToToRelDef rfrom (AppT (AppT (AppT (AppT _ (LitT (StrTyLit rname))) rto) rcol
   , (strToSym rname, AppT (AppT (AppT (AppT (PromotedT 'RelDefC) rfrom) rto) rcols) rdc)
   )
 relToToRelDef _ _ = error "err in relToToRelDef"
-
-fromPromotedList :: Type -> [Type]
-fromPromotedList = \case
-  PromotedNilT -> []
-  AppT (AppT PromotedConsT x) xs -> x : fromPromotedList xs
-  _ -> error "Invalid promoted list"
 
 symToStrEQ :: Type -> ExpQ
 symToStrEQ (LitT (StrTyLit v)) = sigE (litE $ stringL v) [t| T.Text |]

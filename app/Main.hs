@@ -9,18 +9,15 @@ module Main where
 import Control.Applicative (ZipList(..))
 import Data.Tagged (Tagged(..))
 import DbSchema.DML
-
 import CustomerView
 import Model
 
+
 customers :: UTCTime -> [CustomerT]
 customers d =
-  [ CustomerT 0 "Lena" [ AddressT 0 "SPb" True ] "Test"
+  [ CustomerT 0 "Lena" [ ] "Test"
     [ OrderT 0 "3" 0 Nothing (utctDay d) [] [] ] []
-  , CustomerT 0 "Dima" [ AddressT 0 "SPb" True
-                      , AddressT 0 "Msk" False
-                      , AddressT 0 "ירושלים" False
-                      ] "Some text"
+  , CustomerT 0 "Dima" [ ] "Some text"
     [ OrderT 0 "1" 0 Nothing (utctDay d) [] []
     , OrderT 0 "2" 0 Nothing (utctDay d) [] []
     ] []
@@ -28,14 +25,11 @@ customers d =
 
 customers2 :: UTCTime -> [CustomerT]
 customers2 d =
-  [ CustomerT 2 "Dima" [ AddressT 2 "SPb" True
-                      , AddressT 3 "Msk" False
-                      , AddressT 4 "תל-אביב" False
-                      ] "Some text"
+  [ CustomerT 2 "Dima" [] "Some text2"
     [ OrderT 2 "1" 2 Nothing (addDays 1 $ utctDay d) [] []
     , OrderT 0 "4" 0 Nothing (addDays 1 $ utctDay d) [] []
     ] []
-  , CustomerT 0 "Лена" [ AddressT 1 "SPb" True ] "Test"
+  , CustomerT 0 "Лена" [ ] "Test"
     [ OrderT 1 "3" 0 Nothing (addDays 1 $ utctDay d) [] [] ] []
   ]
 
