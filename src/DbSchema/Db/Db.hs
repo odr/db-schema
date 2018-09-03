@@ -11,16 +11,14 @@
 
 module DbSchema.Db.Db (module DbSchema.Db.Db) where
 
-import           Control.Monad.Catch        (MonadCatch)
-import           Control.Monad.IO.Class     as DbSchema.Db.Db
+import           Control.Monad.Catch (MonadCatch)
+import           Control.Monad.IO.Class as DbSchema.Db.Db
 import           Control.Monad.Trans.Reader (ReaderT)
-import           Data.Text                  (Text)
-import qualified Data.Text                  as T
-import           Type.Reflection            (Typeable, typeRep)
-
+import           Data.Text (Text)
+import qualified Data.Text as T
 import           DbSchema.Util.Format
-import           DbSchema.Util.ToStar       (TStar, ToStar (..))
-
+import           DbSchema.Util.ToStar (TStar, ToStar(..))
+import           Type.Reflection (Typeable, typeRep)
 
 
 data DelCons = DcRestrict | DcCascade | DcSetNull
@@ -72,7 +70,7 @@ class Eq (FieldDB back) => Db back where
   runSession :: (MonadIO m, MonadCatch m)
           => SessionParams back -> SessionMonad back m a -> m a
   prepareCommand :: MonadIO m => Text -> SessionMonad back m (PrepCmd back)
-  -- | Executed before runPrepared in insertAuto operation.
+  -- ^ Executed before runPrepared in insertAuto operation.
   --   We can get there new key and put it into monad.
   preRunInAuto :: MonadIO m => SessionMonad back m ()
   runPrepared :: MonadIO m
@@ -96,4 +94,3 @@ class Eq (FieldDB back) => Db back where
   condLike :: Text -> Text -> Text
   condLike name par
       = format "lower({}) LIKE '%' + lower({}) + '%'" (name, par)
-

@@ -7,10 +7,10 @@
 {-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 module DbSchema.Util.ToStar where
-import           Data.Kind       (Type)
-import           Data.Proxy      (Proxy (..))
-import qualified Data.Text       as T
-import           GHC.TypeLits    (KnownSymbol, Symbol, symbolVal)
+import           Data.Kind (Type)
+import           Data.Proxy (Proxy(..))
+import qualified Data.Text as T
+import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import           Type.Reflection (Typeable, typeRep)
 
 type family TStar k :: Type

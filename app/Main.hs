@@ -6,14 +6,12 @@
 {-# LANGUAGE TypeApplications    #-}
 module Main where
 
-import           Control.Applicative (ZipList (..))
-import           Data.Tagged         (Tagged (..))
-import           DbSchema.DML
+import Control.Applicative (ZipList(..))
+import Data.Tagged (Tagged(..))
+import DbSchema.DML
+import CustomerView
+import Model
 
-import           CustomerView
-import           Dbs
--- import           MasterData
-import           Model
 
 customers :: UTCTime -> [CustomerT]
 customers d =
@@ -69,4 +67,3 @@ main = do
   print rs3
   putStrLn "------------"
   print $ rs2 == rs3
-

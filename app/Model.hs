@@ -12,20 +12,18 @@
 
 module Model(module Model) where
 
-import           Data.Fixed           as Model
--- import           Data.Generics.Product (field)
-import           Data.Int             as Model (Int64)
--- import           Data.Text
-import           Data.Time            as Model
--- import           GHC.Generics         (Generic)
-import           Lens.Micro           ((^.))
+import Data.Fixed as Model
+import Data.Generics.Product (field)
+import Data.Int as Model (Int64)
+import Data.Time as Model
+import GHC.Generics (Generic)
+import Lens.Micro ((^.))
 
-import           DbSchema.Db          as Model
-import           DbSchema.Db.Sqlite   as Model (Sqlite)
-import           DbSchema.DDL         as Model
-import           DbSchema.Def         as Model
-import           DbSchema.TH.MkSchema (mkSchema)
-
+import DbSchema.Db as Model
+import DbSchema.Db.Sqlite as Model (Sqlite)
+import DbSchema.DDL as Model
+import DbSchema.Def as Model
+import DbSchema.TH.MkSchema (mkSchema)
 import           Dbs
 import           TabData
 

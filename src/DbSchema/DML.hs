@@ -13,28 +13,27 @@
 {-# LANGUAGE UndecidableInstances    #-}
 {-# LANGUAGE UndecidableSuperClasses #-}
 module DbSchema.DML where
-import           Control.Applicative          (ZipList (..))
-import           Control.Arrow                ((&&&))
-import           Control.Monad.Catch          (MonadMask, finally)
-import           Data.Bifunctor               (bimap, second)
-import           Data.Functor.Compose         (Compose (..))
-import           Data.Kind                    (Type)
-import           Data.List                    ((\\))
-import qualified Data.Map                     as M
-import           Data.Singletons.Prelude      (FstSym0, Proxy (..), SndSym0)
+import           Control.Applicative (ZipList(..))
+import           Control.Arrow ((&&&))
+import           Control.Monad.Catch (MonadMask, finally)
+import           Data.Bifunctor (bimap, second)
+import           Data.Functor.Compose (Compose(..))
+import           Data.Kind (Type)
+import           Data.List ((\\))
+import qualified Data.Map as M
+import           Data.Singletons.Prelude (FstSym0, Proxy(..), SndSym0)
 import           Data.Singletons.Prelude.List (Intersect, Map)
-import           Data.Tagged                  (Tagged (..))
-import qualified Data.Text                    as T
-import           GHC.TypeLits                 (Symbol)
-import           Lens.Micro                   ((&), (.~), (^.))
+import           Data.Tagged (Tagged(..))
+import qualified Data.Text as T
+import           GHC.TypeLits (Symbol)
+import           Lens.Micro ((&), (.~), (^.))
 
-import           DbSchema.Condition           (Cond, dbCond)
-import           DbSchema.Db                  (Db (..), MonadIO (..),
-                                               SessionMonad)
+import           DbSchema.Condition (Cond, dbCond)
+import           DbSchema.Db (Db(..), MonadIO(..), SessionMonad)
 import           DbSchema.Def
-import           DbSchema.Util.Format         (format)
+import           DbSchema.Util.Format (format)
 import           DbSchema.Util.RecLens
-import           DbSchema.Util.ToStar         (toStar)
+import           DbSchema.Util.ToStar (toStar)
 
 
 type AppTr f = (Applicative f, Traversable f) --, Show1 f)
