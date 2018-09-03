@@ -22,12 +22,7 @@ import Data.Type.Equality
 import GHC.TypeLits (Symbol)
 import Lens.Micro (lens, (.~), (^.))
 
--- Simple lens by (fldName :: Symbol)
---  (a -> f a) -> b -> f b
--- (a -> f a) -> Maybe a -> f (Maybe a)
--- g afa = \case
-    -- Nothing -> const Nothing <$> afa undefined
-    -- Just a -> Just <$> afa a
+
 class RecLens (s :: Symbol) b where
   type TLens s b
   recLens :: Functor f => (TLens s b -> f (TLens s b)) -> b -> f b
@@ -37,7 +32,7 @@ instance RecLens s (Tagged '[s] v) where
   recLens f = fmap Tagged . f . untag
 --
 instance RecLensB (s == s1) s (Tagged (s1 ': s2 ': ss) (v1,v2))
-      => RecLens s (Tagged (s1 ': s2 ': ss) (v1,v2)) where
+  => RecLens s (Tagged (s1 ': s2 ': ss) (v1,v2)) where
   type TLens s (Tagged (s1 ': s2 ': ss) (v1,v2)) =
     TLensB (s==s1) s (Tagged (s1 ': s2 ': ss) (v1,v2))
   recLens = recLensB @(s == s1) @s @(Tagged (s1 ': s2 ': ss) (v1,v2))
@@ -51,10 +46,11 @@ instance RecLensB 'True s (Tagged (s ': ss) (v1,v2)) where
   recLensB f (Tagged (v1,v2))= Tagged @(s ': ss) . (,v2) <$> f v1
 --
 instance RecLens s (Tagged ss v2)
-      => RecLensB 'False s (Tagged (s1 ': ss) (v1,v2)) where
+  => RecLensB 'False s (Tagged (s1 ': ss) (v1,v2)) where
   type TLensB 'False s (Tagged (s1 ': ss) (v1,v2)) = TLens s (Tagged ss v2)
-  recLensB f (Tagged (v1,v2)) = Tagged @(s1 ': ss) . (v1,) . untag
-                            <$> recLens @s @(Tagged ss v2) f (Tagged @ss v2)
+  recLensB f (Tagged (v1,v2))
+    = Tagged @(s1 ': ss) . (v1,) . untag
+    <$> recLens @s @(Tagged ss v2) f (Tagged @ss v2)
 
 class Rec r where
   type TRec r :: [(Symbol,Type)]
@@ -69,12 +65,12 @@ instance Rec (Tagged '[(n::Symbol)] v)   where
   type TRec (Tagged '[n] v) = '[ '(n,v)]
 
 instance Rec (Tagged (n2 ': ns) v2)
-      => Rec (Tagged (n1 ': n2 ': ns :: [Symbol]) (v1,v2))   where
+  => Rec (Tagged (n1 ': n2 ': ns :: [Symbol]) (v1,v2))   where
   type TRec (Tagged (n1 ': n2 ': ns) (v1,v2)) =
     '(n1,v1) ': TRec (Tagged (n2 ': ns) v2)
 
 instance (Rec v1, IsJust (Lookup s (TRec v1)) ~ b , RecLensB b s (v1,v2))
-      => RecLens s (v1, v2) where
+  => RecLens s (v1, v2) where
   type TLens s (v1,v2) = TLensB (IsJust (Lookup s (TRec v1))) s (v1,v2)
   recLens = recLensB @b @s @(v1,v2)
 --
@@ -102,7 +98,7 @@ instance SubRec '[] r where
   setSub _ = id
 
 instance (RecLens n1 r, SubRec (n2 ': ns) r)
-      => SubRec (n1 ': n2 ': ns) r where
+  => SubRec (n1 ': n2 ': ns) r where
   type TSubRec (n1 ': n2 ': ns) r = (TLens n1 r, TSubRec (n2 ': ns) r)
   getSub = (,) <$> (^. recLens @n1) <*> getSub @(n2 ': ns)
   setSub (a,b) = setSub @(n2 ': ns) b . (recLens @n1 .~ a)
@@ -123,5 +119,5 @@ instance MbMaybe '[] () () where mbMaybe = id
 instance MbMaybeB (a==b) a b => MbMaybe '[n] a b where
   mbMaybe = mbMaybeB @(a==b)
 instance (MbMaybeB (a1==b1) a1 b1, MbMaybe (n2 ':ns) as bs)
-      => MbMaybe (n1 ':n2 ':ns) (a1,as) (b1,bs) where
+  => MbMaybe (n1 ':n2 ':ns) (a1,as) (b1,bs) where
   mbMaybe (a1,as) = (mbMaybeB @(a1==b1) a1, mbMaybe @(n2 ':ns) as)

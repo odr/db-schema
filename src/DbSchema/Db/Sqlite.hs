@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies              #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 {-# LANGUAGE UndecidableInstances      #-}
-module DbSchema.Db.Sqlite(Sqlite, SQLData) where
+module DbSchema.Db.Sqlite(Sqlite) where
 
 import           Control.Monad.Catch (SomeException, catch, throwM)
 import           Control.Monad.Trans.Reader (ReaderT(..), ask)
